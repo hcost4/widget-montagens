@@ -50,7 +50,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'teste-3 (30/10/2026)';
+  var VERSAO = 'teste-4 (30/10/2026)';
   var WAF = null, Compass = null;
   var conectado = false;
   var estado = { spaceUrl: null, platformId: null, ctx: null, csrf: null, usuario: null };
@@ -312,6 +312,8 @@
     return Math.floor((Date.now() - t) / 86400000);
   }
 
+  var ultimosEncontrados = [];
+
   function buscar() {
     var termo = ($('sm-nome').value || '').trim();
     if (!termo || !conectado) return;
@@ -320,17 +322,52 @@
     registro = registro.filter(function (r) { return /^[123]\./.test(r.etapa); });
     anotar('4. Busca da montagem', '...');
     var url = estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/search?$searchStr=' + encodeURIComponent(termo) + '&$top=20';
-    var raiz = null;
     requisicao('GET', url).then(function (r) {
       var membros = (r && r.member) || [];
       amostra.busca = { totalItems: r && r.totalItems, primeiros: membros.slice(0, 3) };
       if (!membros.length) throw new Error('nenhum item encontrado com "' + termo + '"');
-      membros.forEach(function (m) { if (!raiz && (m.name === termo || m.title === termo)) raiz = m; });
-      if (!raiz) raiz = membros[0];
-      anotar('4. Busca da montagem', 'OK', membros.length + ' encontrado(s); usando ' + (raiz.name || '') + ' "' + (raiz.title || '') + '" rev. ' + (raiz.revision || '?'));
-      anotar('5. Expansão da estrutura', '...');
-      return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raiz.id) + '/expand', { expandDepth: -1, withPath: true });
-    }).then(function (r) {
+      var exato = null;
+      membros.forEach(function (m) { if (!exato && (m.name === termo || m.title === termo)) exato = m; });
+      if (exato || membros.length === 1) {
+        expandir(exato || membros[0], membros.length);
+        return;
+      }
+      // Vários resultados (ex.: configurações do SOLIDWORKS): o usuário escolhe.
+      anotar('4. Busca da montagem', 'OK', membros.length + ' encontrados; escolha qual expandir');
+      mostrarEscolha(membros);
+      $('sm-buscar').disabled = false;
+    }).catch(function (e) {
+      anotar('4. Busca da montagem', 'ERRO', textoErro(e));
+      $('sm-buscar').disabled = false;
+    });
+  }
+
+  function mostrarEscolha(membros) {
+    ultimosEncontrados = membros;
+    var html = '<div class="sm-caixa"><h2>Encontrei mais de um item. Qual montagem você quer ver?</h2>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">';
+    membros.forEach(function (m, i) {
+      html += '<button type="button" class="sm-btn2 sm-escolha" data-i="' + i + '" style="text-align:left;height:auto;min-height:36px;padding:6px 12px">' +
+        '<strong>' + esc(m.title) + '</strong> · ' + esc(m.name) + ' · rev. ' + esc(m.revision) + ' · ' + esc(ROTULOS[m.state] || m.state) + '</button>';
+    });
+    html += '</div></div>';
+    $('sm-resultado').innerHTML = html;
+    var botoes = document.querySelectorAll('.sm-escolha');
+    for (var b = 0; b < botoes.length; b++) {
+      botoes[b].addEventListener('click', function (ev) {
+        var i = Number(ev.currentTarget.getAttribute('data-i'));
+        $('sm-resultado').innerHTML = '';
+        expandir(ultimosEncontrados[i], ultimosEncontrados.length);
+      });
+    }
+  }
+
+  function expandir(raiz, quantos) {
+    $('sm-buscar').disabled = true;
+    anotar('4. Busca da montagem', 'OK', quantos + ' encontrado(s); usando ' + (raiz.name || '') + ' "' + (raiz.title || '') + '" rev. ' + (raiz.revision || '?'));
+    anotar('5. Expansão da estrutura', '...');
+    requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raiz.id) + '/expand', { expandDepth: -1, withPath: true })
+    .then(function (r) {
       var membros = (r && r.member) || [];
       amostra.expansao = { total: membros.length, primeiros: membros.slice(0, 6) };
       var refs = {}, caminhos = [], nInst = 0, porTipo = {}, exInst = [];
@@ -347,13 +384,19 @@
       amostra.expansao.exemplosInstancia = exInst;
       var linhas = [];
       if (caminhos.length) {
-        // ordena os caminhos para a lista seguir a árvore (pai antes dos filhos)
-        caminhos.sort(function (a, b) { var x = a.join('/'), y = b.join('/'); return x < y ? -1 : (x > y ? 1 : 0); });
+        // A 3DX devolve só os caminhos até as folhas. As submontagens (ex.: Sub1)
+        // aparecem apenas no meio desses caminhos, então geramos também os
+        // caminhos intermediários, sem repetir, mantendo a ordem da 3DX.
+        var vistos = {};
         caminhos.forEach(function (p) {
-          var ultimo = p[p.length - 1];
-          if (ultimo === raiz.id || !refs[ultimo]) return;
-          var nivel = p.filter(function (id) { return !!refs[id]; }).length - 1;
-          linhas.push({ nivel: nivel, item: refs[ultimo] });
+          for (var L = 3; L <= p.length; L += 2) {
+            var q = p.slice(0, L), chave = q.join('/');
+            if (vistos[chave]) continue;
+            vistos[chave] = true;
+            var ultimo = q[q.length - 1];
+            if (ultimo === raiz.id || !refs[ultimo]) continue;
+            linhas.push({ nivel: (q.length - 1) / 2, item: refs[ultimo] });
+          }
         });
       } else {
         Object.keys(refs).forEach(function (id) { if (id !== raiz.id) linhas.push({ nivel: '-', item: refs[id] }); });
