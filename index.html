@@ -49,7 +49,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'teste-1 (30/10/2026)';
+  var VERSAO = 'teste-2 (30/10/2026)';
   var WAF = null, Compass = null;
   var conectado = false;
   var estado = { spaceUrl: null, platformId: null, ctx: null, csrf: null, usuario: null };
@@ -146,37 +146,119 @@
     });
   }
 
-  function obterSpace() {
+  function comTempo(promessa, ms, nome) {
     return new Promise(function (resolve, reject) {
-      var pid = null;
-      try { pid = widget.getValue('x3dPlatformId'); } catch (x) { }
-      Compass.getPlatformServices({
+      var t = setTimeout(function () { reject(new Error(nome + ': sem resposta em ' + (ms / 1000) + 's')); }, ms);
+      promessa.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+
+  function lerPlatformId() {
+    var pid = null;
+    try { pid = widget.getValue('x3dPlatformId'); } catch (x) { }
+    amostra.x3dPlatformId = pid || null;
+    return pid;
+  }
+
+  // Tentativa A: getServiceUrl (forma mais comum nos widgets)
+  function tentativaA(pid) {
+    return new Promise(function (resolve, reject) {
+      var opcoes = {
+        serviceName: '3DSpace',
+        onComplete: function (r) {
+          amostra.tentativaA = r;
+          var url = null, plat = pid;
+          if (typeof r === 'string') url = r;
+          else if (Array.isArray(r)) {
+            var achado = null;
+            r.forEach(function (x) { if (x && pid && x.platformId === pid) achado = x; });
+            achado = achado || r[0];
+            if (achado) { url = achado.url; plat = achado.platformId; }
+          } else if (r && r.url) { url = r.url; plat = r.platformId || pid; }
+          if (url) resolve({ '3DSpace': url, platformId: plat, displayName: plat });
+          else reject(new Error('getServiceUrl respondeu sem endereço'));
+        },
+        onFailure: function (e) { reject(new Error('getServiceUrl falhou: ' + textoErro(e))); }
+      };
+      if (pid) opcoes.platformId = pid;
+      Compass.getServiceUrl(opcoes);
+    });
+  }
+
+  // Tentativa B: getPlatformServices
+  function tentativaB(pid) {
+    return new Promise(function (resolve, reject) {
+      var opcoes = {
         onComplete: function (dados) {
           var lista = Array.isArray(dados) ? dados : [dados];
-          amostra.plataformas = lista.map(function (p) { return p ? { platformId: p.platformId, nome: p.displayName } : null; });
+          amostra.tentativaB = lista.map(function (p) { return p ? { platformId: p.platformId, nome: p.displayName, space: p['3DSpace'] } : null; });
           var escolhida = null;
           lista.forEach(function (p) { if (p && pid && p.platformId === pid) escolhida = p; });
-          if (!escolhida) escolhida = lista[0];
-          if (!escolhida || !escolhida['3DSpace']) {
-            reject(new Error('3DSpace não encontrado nos serviços da plataforma'));
-            return;
-          }
-          resolve(escolhida);
+          escolhida = escolhida || lista[0];
+          if (escolhida && escolhida['3DSpace']) resolve(escolhida);
+          else reject(new Error('getPlatformServices sem 3DSpace'));
         },
-        onFailure: function (e) { reject(new Error('falha ao listar serviços: ' + textoErro(e))); }
+        onFailure: function (e) { reject(new Error('getPlatformServices falhou: ' + textoErro(e))); }
+      };
+      if (pid) opcoes.platformId = pid;
+      Compass.getPlatformServices(opcoes);
+    });
+  }
+
+  function obterSpace() {
+    var pid = lerPlatformId();
+    var falhas = [];
+    function proxima(lista) {
+      if (!lista.length) return Promise.reject(new Error('nenhum método automático funcionou: ' + falhas.join(' | ')));
+      var t = lista[0];
+      anotar('1. Serviços da plataforma', '...', 'tentando ' + t.nome + (pid ? ' (plataforma ' + pid + ')' : ' (sem id de plataforma)'));
+      return comTempo(t.fn(), 12000, t.nome).catch(function (e) {
+        falhas.push(textoErro(e));
+        return proxima(lista.slice(1));
       });
+    }
+    return proxima([
+      { nome: 'método A', fn: function () { return tentativaA(pid); } },
+      { nome: 'método B', fn: function () { return tentativaB(pid); } }
+    ]);
+  }
+
+  function pedirSpaceManual() {
+    var html =
+      '<strong>Não consegui descobrir o endereço do 3DSpace sozinho.</strong> Cole abaixo o endereço do 3DSpace do seu tenant ' +
+      '(algo como <code>https://r1132...-space.3dexperience.3ds.com/enovia</code>) e clique em Usar.' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+      '<label for="sm-space" style="position:absolute;left:-9999px">Endereço do 3DSpace</label>' +
+      '<input id="sm-space" type="text" style="height:34px;min-width:360px;padding:0 8px;border:1px solid #C3C9D1;border-radius:4px" />' +
+      '<button type="button" class="sm-btn2" id="sm-usar">Usar</button></div>';
+    mostrarAviso(html);
+    $('sm-usar').addEventListener('click', function () {
+      var v = ($('sm-space').value || '').trim().replace(/\/+$/, '');
+      if (!v) return;
+      mostrarAviso('');
+      registro = [];
+      continuarConexao({ '3DSpace': v, platformId: amostra.x3dPlatformId, displayName: 'manual' });
     });
   }
 
   function conectar() {
     anotar('1. Serviços da plataforma', '...');
     obterSpace().then(function (p) {
-      estado.spaceUrl = p['3DSpace'];
-      estado.platformId = p.platformId;
-      anotar('1. Serviços da plataforma', 'OK', (p.displayName || p.platformId || '') + ' · ' + estado.spaceUrl);
-      anotar('2. Usuário e contexto de segurança', '...');
-      return requisicao('GET', estado.spaceUrl + '/resources/modeler/pno/person?current=true&select=preferredcredentials&select=collabspaces');
-    }).then(function (pessoa) {
+      continuarConexao(p);
+    }).catch(function (e) {
+      anotar('1. Serviços da plataforma', 'ERRO', textoErro(e));
+      $('sm-info').textContent = 'Não foi possível descobrir o 3DSpace automaticamente.';
+      pedirSpaceManual();
+    });
+  }
+
+  function continuarConexao(p) {
+    estado.spaceUrl = String(p['3DSpace']).replace(/\/+$/, '');
+    estado.platformId = p.platformId;
+    anotar('1. Serviços da plataforma', 'OK', (p.displayName || p.platformId || '') + ' · ' + estado.spaceUrl);
+    anotar('2. Usuário e contexto de segurança', '...');
+    comTempo(requisicao('GET', estado.spaceUrl + '/resources/modeler/pno/person?current=true&select=preferredcredentials&select=collabspaces'), 30000, 'dados do usuário')
+    .then(function (pessoa) {
       amostra.pessoa = { name: pessoa && pessoa.name, preferredcredentials: pessoa && pessoa.preferredcredentials };
       var pc = pessoa && pessoa.preferredcredentials;
       if (pc && pc.role && pc.organization && pc.collabspace) {
@@ -190,7 +272,7 @@
       estado.usuario = pessoa.name || '';
       anotar('2. Usuário e contexto de segurança', 'OK', estado.usuario + ' · ' + estado.ctx);
       anotar('3. Token de segurança (CSRF)', '...');
-      return requisicao('GET', estado.spaceUrl + '/resources/v1/application/CSRF');
+      return comTempo(requisicao('GET', estado.spaceUrl + '/resources/v1/application/CSRF'), 30000, 'token CSRF');
     }).then(function (r) {
       if (!r || !r.csrf || !r.csrf.name) throw new Error('resposta sem token');
       estado.csrf = r.csrf;
