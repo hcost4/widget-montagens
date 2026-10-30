@@ -50,7 +50,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'teste-4 (30/10/2026)';
+  var VERSAO = 'teste-5 (30/10/2026)';
   var WAF = null, Compass = null;
   var conectado = false;
   var estado = { spaceUrl: null, platformId: null, ctx: null, csrf: null, usuario: null };
@@ -249,12 +249,26 @@
     try { window.localStorage.setItem('sm-space', v); } catch (x) { }
   }
 
+  // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
+  // troque aqui ou passe ?space=<endereço> no link do Run Your App.
+  var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
+
+  function lerSpaceDoLink() {
+    try {
+      var m = /[?&]space=([^&#]+)/.exec(window.location.search || '');
+      return m ? decodeURIComponent(m[1]) : '';
+    } catch (x) { return ''; }
+  }
+
   function conectar() {
     lerPlatformId();
-    var salvo = lerSpaceSalvo();
-    if (salvo) {
-      anotar('1. Serviços da plataforma', '...', 'usando endereço salvo');
-      continuarConexao({ '3DSpace': salvo, platformId: amostra.x3dPlatformId, displayName: 'salvo' });
+    var origem = '', endereco = '';
+    if ((endereco = lerSpaceDoLink())) origem = 'do link';
+    else if ((endereco = lerSpaceSalvo())) origem = 'salvo';
+    else if ((endereco = SPACE_PADRAO)) origem = 'padrão';
+    if (endereco) {
+      anotar('1. Serviços da plataforma', '...', 'usando endereço ' + origem);
+      continuarConexao({ '3DSpace': endereco, platformId: amostra.x3dPlatformId, displayName: origem });
       return;
     }
     anotar('1. Serviços da plataforma', '...');
