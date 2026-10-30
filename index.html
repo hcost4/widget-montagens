@@ -90,7 +90,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'mvp-2 (30/10/2026)';
+  var VERSAO = 'mvp-3 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -231,6 +231,50 @@
       var t = setTimeout(function () { reject(new Error(nome + ': sem resposta em ' + (ms / 1000) + 's')); }, ms);
       promessa.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
     });
+  }
+
+  // Chamada à busca da 3DX (3DSearch). Tenta formas diferentes e guarda a que funcionou.
+  var FED_VARIANTES = [
+    { nome: 'simples', ctx: false, extra: {} },
+    { nome: 'passport', ctx: false, extra: { proxy: 'passport' } },
+    { nome: 'com contexto', ctx: true, extra: {} }
+  ];
+  var fedVariante = -1;
+  function chamarFed(url, corpo, v) {
+    return new Promise(function (resolve, reject) {
+      var headers = { 'Accept': 'application/json', 'Content-Type': 'application/json' };
+      if (v.ctx && estado.ctx) headers.SecurityContext = estado.ctx;
+      var o = {
+        method: 'POST', headers: headers, data: JSON.stringify(corpo), type: 'json', timeout: 30000,
+        onComplete: function (r) { if (typeof r === 'string') { try { r = JSON.parse(r); } catch (x) { } } resolve(r); },
+        onFailure: function (err, resp) {
+          var extra = '';
+          if (resp) { try { extra = ' | resposta: ' + (typeof resp === 'string' ? resp : JSON.stringify(resp)).slice(0, 300); } catch (x) { } }
+          reject(new Error(textoErro(err) + extra));
+        },
+        onTimeout: function () { reject(new Error('tempo esgotado')); }
+      };
+      for (var k in v.extra) o[k] = v.extra[k];
+      WAF.authenticatedRequest(url, o);
+    });
+  }
+  function buscaFed(url, corpo) {
+    if (fedVariante >= 0) return comTempo(chamarFed(url, corpo, FED_VARIANTES[fedVariante]), 35000, 'busca de imagens');
+    amostra.thumbsTentativas = [];
+    function tentar(i) {
+      if (i >= FED_VARIANTES.length) return Promise.reject(new Error('nenhuma forma de chamar a busca de imagens funcionou'));
+      var v = FED_VARIANTES[i];
+      return comTempo(chamarFed(url, corpo, v), 35000, v.nome).then(function (r) {
+        if (!r || !r.results) throw new Error('resposta sem "results": ' + String(JSON.stringify(r)).slice(0, 200));
+        amostra.thumbsTentativas.push(v.nome + ': OK, ' + r.results.length + ' resultado(s)');
+        fedVariante = i;
+        return r;
+      }).catch(function (e) {
+        amostra.thumbsTentativas.push(v.nome + ': ' + textoErro(e));
+        return tentar(i + 1);
+      });
+    }
+    return tentar(0);
   }
 
   // ---------- conexão ----------
@@ -382,7 +426,7 @@
     var lotes = [];
     for (var i = 0; i < nomes.length; i += 25) lotes.push(nomes.slice(i, i + 25));
     var falhas = 0;
-    var promessas = lotes.map(function (lote) {
+    function processarLote(lote) {
       var corpo = {
         label: 'sm-thumbs', locale: 'en', select_predicate: ['ds6w:identifier', 'preview_url'],
         with_indexing_date: false, with_nls: false, with_synthesis: false,
@@ -390,7 +434,10 @@
         nresults: 100, start: '0', source: ['3dspace'], tenant: tenant,
         login: { '3dspace': { SecurityContext: estado.ctx } }
       };
-      return requisicao('POST', urlBusca, corpo).then(function (r) {
+      return buscaFed(urlBusca, corpo).then(function (r) {
+        if (!amostra.thumbsAmostra && r && r.results && r.results[0]) {
+          amostra.thumbsAmostra = (r.results[0].attributes || []).map(function (x) { return x.name; });
+        }
         (r && r.results || []).forEach(function (res) {
           var a = {};
           (res.attributes || []).forEach(function (x) { a[x.name] = x.value; });
@@ -399,8 +446,11 @@
         });
         lote.forEach(function (n) { if (!(n in thumbs)) thumbs[n] = ''; });
       }).catch(function (e) { falhas++; amostra.erroThumbs = textoErro(e); });
-    });
-    Promise.all(promessas).then(function () {
+    }
+    // o primeiro lote descobre a forma de chamada que funciona; os demais vão em paralelo
+    processarLote(lotes[0]).then(function () {
+      return Promise.all(lotes.slice(1).map(processarLote));
+    }).then(function () {
       thumbsEstado = falhas === lotes.length ? 'erro' : 'ok';
       anotar('Thumbnails', falhas ? (falhas === lotes.length ? 'ERRO' : 'OK') : 'OK', falhas ? falhas + ' de ' + lotes.length + ' lote(s) falharam' : '');
       desenharArvore();
@@ -410,7 +460,7 @@
   function celulaThumb(item) {
     var url = thumbs[item.name];
     if (url) return '<div class="sm-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" /></div>';
-    var txt = thumbsEstado === 'carregando' && !(item.name in thumbs) ? '...' : 'sem imagem';
+    var txt = thumbsEstado === 'carregando' && !(item.name in thumbs) ? '...' : (thumbsEstado === 'erro' ? 'erro' : 'sem imagem');
     return '<div class="sm-thumb vazio">' + txt + '</div>';
   }
 
@@ -665,7 +715,7 @@
       }
     })(dados.raiz);
 
-    var html = '<table style="min-width:900px"><thead><tr><th class="num">Nível</th><th>Thumbnail</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Modificado</th><th>Owner</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
+    var html = '<table style="min-width:900px"><thead><tr><th class="num">Nível</th><th>Título</th><th>Thumbnail</th><th>Rev.</th><th>Estado</th><th>Modificado</th><th>Owner</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
     linhas.forEach(function (n) {
       var it = n.item, recuo = (n.nivel - 1) * 22;
       var botao = n.filhos.length
@@ -677,9 +727,9 @@
       if (n.parado) alertas += '<span class="sm-tag t-parado">parado</span>';
       html += '<tr' + (n.paiLiberado || n.temFilhoPendente ? ' class="marcada"' : '') + '>' +
         '<td class="num">' + n.nivel + '</td>' +
-        '<td class="sm-celthumb">' + celulaThumb(it) + '</td>' +
         '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(it.name) + '">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
           (n.filhos.length ? '<span class="sm-filhos">(' + n.filhos.length + ')</span>' : '') + '</span></td>' +
+        '<td class="sm-celthumb">' + celulaThumb(it) + '</td>' +
         '<td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
         '<td>' + esc(dataBR(it.modified)) + '</td><td>' + esc(it.owner) + '</td>' +
