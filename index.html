@@ -55,6 +55,8 @@
   .t-parado { background: #FFF1CC; color: #6B4700; border: 1px solid #F0D79A; }
   .t-2d { background: #EEF2F8; color: #1F4A7A; border: 1px solid #B9CBE2; }
   .sm-tabela tr.sm-linha2d td { background: #FAFBFD; }
+  .sm-link2d { border: 0; background: none; padding: 0; font: inherit; color: #1D5C99; text-decoration: underline; cursor: pointer; text-align: left; }
+  .sm-link2d:hover { color: #123E69; }
   .sm-tabela { overflow-x: auto; }
   .sm-tabela table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .sm-tabela th { text-align: left; font-weight: 600; color: #4F5864; font-size: 12px; padding: 7px 6px; border-bottom: 1px solid #E3E6EA; white-space: nowrap; }
@@ -105,7 +107,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'mvp-6 (30/10/2026)';
+  var VERSAO = 'mvp-7 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -177,7 +179,8 @@
     '</div><div id="sm-modal"></div></div>';
 
   // App da 3DX usado para ver o item em 3D (3DPlay).
-  var APP_3D = 'X3DPLAY_AP';
+  // X3DPLAW_AP = 3DPlay web (o que abre dentro do dashboard). Abre peças, montagens e desenhos.
+  var APP_3D = 'X3DPLAW_AP';
   var ICONE_X = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>';
   var noModal = null;
 
@@ -538,8 +541,8 @@
             var atual = desenhos[alvo];
             if (!atual || (ORDEM_DES[d.state] || 0) > (ORDEM_DES[atual.state] || 0)) desenhos[alvo] = { state: d.state, name: d.name, title: d.title };
             var lista = desenhosLista[alvo] || (desenhosLista[alvo] = []);
-            if (!lista.some(function (x) { return x.id === d.id; })) {
-              lista.push({ id: d.id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing' });
+            if (!lista.some(function (x) { return x.id === id; })) {
+              lista.push({ id: id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing' });
             }
           });
         }).catch(function (e) { falhas++; amostra.erroDesenhoDetalhe = textoErro(e); });
@@ -646,8 +649,9 @@
             (alertas.length ? '<dt>Alertas</dt><dd>' + alertas.join(' ') + '</dd>' : '') +
           '</dl>' +
           '<div class="sm-modal-acoes"><button type="button" class="sm-btn" id="sm-modal-3d">Ver em 3D (3DPlay)</button>' +
+            (melhorDesenho(it.id) ? '<button type="button" class="sm-btn" id="sm-modal-2d">Ver desenho (2D)</button>' : '') +
             '<button type="button" class="sm-btn2" id="sm-modal-fechar2">Fechar</button></div>' +
-          '<div class="sm-modal-msg" id="sm-modal-msg"><span class="sm-vazio">O 3D abre no 3DPlay da plataforma, onde dá para girar, dar zoom e medir. Exige acesso ao app 3DPlay.</span></div>' +
+          '<div class="sm-modal-msg" id="sm-modal-msg"><span class="sm-vazio">Abre no 3DPlay da plataforma, numa nova aba, onde dá para girar, dar zoom e medir.</span></div>' +
         '</div></div>';
     $('sm-modal-fechar').focus();
   }
@@ -666,20 +670,37 @@
     return dash + '/#app:' + appId + '/content:X3DContentId=' + encodeURIComponent(JSON.stringify(conteudo));
   }
 
+  // abre um item ou desenho no 3DPlay numa nova aba; devolve o html da mensagem para mostrar
+  function abrirPorLink(obj, rotuloObj) {
+    var url = linkApp(APP_3D, obj);
+    if (!url) { anotar('Abrir no 3DPlay', 'ERRO', 'não montei o link'); return '<div class="sm-erro">Não consegui montar o link do 3DPlay.</div>'; }
+    var janela = null;
+    try { janela = window.open(url, '_blank'); } catch (x) { }
+    anotar('Abrir no 3DPlay', 'OK', rotuloObj + ' · ' + (obj.name || ''));
+    return janela
+      ? '<div class="sm-aviso">Abri ' + esc(rotuloObj) + ' no 3DPlay numa nova aba.</div>'
+      : '<div class="sm-aviso">O navegador bloqueou a nova aba. <a href="' + esc(url) + '" target="_blank" rel="noopener">Clique aqui para abrir no 3DPlay</a>.</div>';
+  }
+
+  function melhorDesenho(itemId) {
+    var lista = (desenhosLista[itemId] || []).slice();
+    lista.sort(function (a, b) { return (ORDEM_DES[b.state] || 0) - (ORDEM_DES[a.state] || 0); });
+    return lista[0] || null;
+  }
+
+  function abrir2D(d) {
+    if (!d) return;
+    var html = abrirPorLink({ id: d.id, type: 'Drawing', title: d.title, name: d.name }, 'o desenho');
+    if ($('sm-modal-msg')) $('sm-modal-msg').innerHTML = html;
+  }
+
   function abrir3D() {
     if (!noModal) return;
     var it = noModal.item, feito = false;
     function msg(html) { if ($('sm-modal-msg')) $('sm-modal-msg').innerHTML = html; }
     function porLink(motivo) {
       if (feito) return; feito = true;
-      var url = linkApp(APP_3D, it);
-      if (!url) { anotar('Abrir em 3D', 'ERRO', 'não montei o link'); msg('<div class="sm-erro">Não consegui montar o link do 3DPlay.</div>'); return; }
-      var janela = null;
-      try { janela = window.open(url, '_blank'); } catch (x) { }
-      anotar('Abrir em 3D', 'OK', 'nova aba (' + motivo + ')');
-      msg(janela
-        ? '<div class="sm-aviso">Abri o 3DPlay numa nova aba com este item. Se aparecer um aviso de acesso, o seu usuário não tem o app 3DPlay.</div>'
-        : '<div class="sm-aviso">O navegador bloqueou a nova aba. <a href="' + esc(url) + '" target="_blank" rel="noopener">Clique aqui para abrir o 3DPlay</a>.</div>');
+      msg(abrirPorLink(it, 'o item em 3D'));
     }
     // janela da própria 3DX por cima do dashboard, quando o módulo existe aqui; senão, nova aba pelo link
     if (moduloJanelas && moduloJanelas.showWidget) {
@@ -980,7 +1001,7 @@
     return '<tr class="sm-linha2d">' +
       '<td class="num">' + (n.nivel + 1) + '</td>' +
       '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(d.name) + '"><span class="sm-tg-vazio"></span>' +
-        '<span class="sm-tag t-2d">2D</span><span>' + esc(d.title || d.name) + '</span><span class="sm-filhos">desenho de ' + esc(n.item.title || n.item.name) + '</span></span></td>' +
+        '<span class="sm-tag t-2d">2D</span><button type="button" class="sm-link2d" data-item="' + esc(n.item.id) + '" data-des="' + esc(d.id) + '" title="Abrir o desenho no 3DPlay">' + esc(d.title || d.name) + '</button><span class="sm-filhos">desenho de ' + esc(n.item.title || n.item.name) + '</span></span></td>' +
       '<td class="sm-celthumb"><div class="sm-thumb vazio" style="color:#4F5864">' + ICONE_2D + '</div></td>' +
       '<td>' + esc(d.revision) + '</td>' +
       '<td><span class="sm-est e-' + esc(d.state) + '">' + esc(rotulo(d.state)) + '</span></td>' +
@@ -1121,9 +1142,15 @@
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
-      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-escolha') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
+      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-escolha') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
       if (!alvo || alvo === this) return;
       if (alvo.classList.contains('sm-thumb-btn')) { abrirModal(Number(alvo.getAttribute('data-idx'))); return; }
+      if (alvo.classList.contains('sm-link2d')) {
+        var idDes = alvo.getAttribute('data-des');
+        var achado = (desenhosLista[alvo.getAttribute('data-item')] || []).filter(function (x) { return x.id === idDes; })[0];
+        if (achado) { var m = abrirPorLink({ id: achado.id, type: 'Drawing', title: achado.title, name: achado.name }, 'o desenho'); if (/bloqueou/.test(m)) mostrarAviso(m.replace(/^<div class="sm-aviso">|<\/div>$/g, '')); }
+        return;
+      }
       if (alvo.classList.contains('sm-escolha')) { ler(encontrados[Number(alvo.getAttribute('data-i'))]); return; }
       if (alvo.id === 'sm-exp-tudo') { expandirTudo(); return; }
       if (alvo.id === 'sm-rec-tudo') { aberto = {}; desenharArvore(); return; }
@@ -1138,6 +1165,7 @@
       while (t && t !== this) {
         if (t.id === 'sm-modal-fechar' || t.id === 'sm-modal-fechar2') { fecharModal(); return; }
         if (t.id === 'sm-modal-3d') { abrir3D(); return; }
+        if (t.id === 'sm-modal-2d') { if (noModal) abrir2D(melhorDesenho(noModal.item.id)); return; }
         t = t.parentNode;
       }
     });
