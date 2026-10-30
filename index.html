@@ -40,6 +40,8 @@
   .sm-card .v small { font-size: 14px; color: #4F5864; font-weight: 500; }
   .sm-card .d { font-size: 12px; color: #4F5864; }
   .sm-card.alerta { border-color: #E8B4AD; background: #FDF3F2; }
+  .sm-card.destaque { border-color: #F0D79A; background: #FFF8E6; }
+  .sm-card.destaque .r { color: #6B4700; }
   .sm-card.alerta .r, .sm-card.alerta .v, .sm-card.alerta .d { color: #7E2318; }
   .sm-barra-est { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: #EEF0F3; }
   .sm-legenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #4F5864; margin-top: 6px; }
@@ -101,7 +103,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'mvp-4 (30/10/2026)';
+  var VERSAO = 'mvp-5 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -118,6 +120,8 @@
   var encontrados = [];
   var thumbs = {};        // nome do item -> endereço da pré-visualização ('' = sem imagem)
   var thumbsEstado = '';  // '', 'carregando', 'ok', 'erro'
+  var desenhos = {};      // id do item (VPMReference) -> { state, name } do melhor desenho ligado a ele
+  var desenhosEstado = ''; // '', 'carregando', 'ok', 'erro'
   var cfg = { limite: 15, metaPct: 90, metaData: '' };
 
   var ROTULOS = { IN_WORK: 'Em trabalho', FROZEN: 'Congelado', RELEASED: 'Liberado', PRIVATE: 'Privado', OBSOLETE: 'Obsoleto' };
@@ -156,6 +160,9 @@
             '<dt>Parado</dt><dd>Em trabalho ou privado e sem modificação há pelo menos o número de dias configurado.</dd>' +
             '<dt>Pai liberado</dt><dd>Item não liberado cujo pai direto já está liberado.</dd>' +
             '<dt>Pendências por owner</dt><dd>Itens únicos que ainda não estão liberados nem obsoletos, agrupados pelo owner.</dd>' +
+            '<dt>Faltam desenhos</dt><dd>Itens sem nenhum desenho na 3DX mais itens cujo desenho ainda não está liberado. Conta peças, submontagens e a montagem principal.</dd>' +
+            '<dt>Desenho do item</dt><dd>Desenho (Drawing) que a própria 3DX liga àquele item ou configuração. Havendo mais de um, vale o mais maduro.</dd>' +
+            '<dt>Liberado sem desenho</dt><dd>Item liberado cujo desenho falta ou ainda não está liberado.</dd>' +
             '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
           '</dl>' +
         '</details>' +
@@ -411,10 +418,12 @@
       bruto = { raiz: raiz, membros: membros, lido: agora() };
       aberto = {};
       thumbs = {}; thumbsEstado = '';
+      desenhos = {}; desenhosEstado = '';
       processar();
       anotar('Expansão', 'OK', dados.unicos.length + ' itens únicos, ' + dados.nos.length + ' ocorrências');
       desenhar();
       carregarThumbs();
+      carregarDesenhos();
     }).catch(function (e) {
       anotar('Expansão', 'ERRO', textoErro(e));
       $('sm-conteudo').innerHTML = '';
@@ -473,6 +482,119 @@
     });
   }
 
+  // ---------- desenhos ----------
+  // 1) a busca da 3DX acha os desenhos (tipo Drawing) cujo rótulo é o título-base das peças;
+  // 2) o detalhe de cada desenho (API de CAD) diz exatamente qual item ele detalha.
+  var ORDEM_DES = { RELEASED: 3, FROZEN: 2, IN_WORK: 1, PRIVATE: 0 };
+
+  function tituloBase(t) { return String(t || '').replace(/\s*\([^()]*\)\s*$/, '').trim(); }
+
+  function infoFed() {
+    var m = /^(https:\/\/)([a-z0-9]+)(-[a-z0-9]+)-space\.(.*?)\/enovia/i.exec(estado.spaceUrl || '');
+    if (!m) return null;
+    var tenant = m[2].toUpperCase();
+    return { tenant: tenant, url: m[1] + m[2] + m[3] + '-fedsearch.' + m[4] + '/federated/search?xrequestedwith=xmlhttprequest&tenant=' + tenant };
+  }
+
+  function carregarDesenhos() {
+    if (!dados) return;
+    var f = infoFed();
+    if (!f) { desenhosEstado = 'erro'; anotar('Desenhos', 'ERRO', 'não reconheci o endereço do 3DSpace'); desenhar(); return; }
+    var itens = dados.unicos.map(function (u) { return u.item; }).concat([dados.raiz.item]);
+    var rotulos = [];
+    itens.forEach(function (it) { var b = tituloBase(it.title || it.name).replace(/"/g, ''); if (b && rotulos.indexOf(b) < 0) rotulos.push(b); });
+    desenhosEstado = 'carregando';
+    anotar('Desenhos', '...', rotulos.length + ' títulos');
+    var lotes = [];
+    for (var i = 0; i < rotulos.length; i += 20) lotes.push(rotulos.slice(i, i + 20));
+    var achados = {}, falhas = 0;
+    function buscarLote(lote) {
+      var corpo = {
+        label: 'sm-desenhos', locale: 'en', select_predicate: ['ds6w:identifier', 'physicalid'],
+        with_indexing_date: false, with_nls: false, with_synthesis: false,
+        query: '[ds6w:type]:"Drawing" AND (' + lote.map(function (l) { return '[ds6w:label]:"' + l + '"'; }).join(' OR ') + ')',
+        refine: {}, order_by: 'desc', order_field: 'relevance', nresults: 200, start: '0', source: ['3dspace'], tenant: f.tenant,
+        login: { '3dspace': { SecurityContext: estado.ctx } }
+      };
+      return buscaFed(f.url, corpo).then(function (r) {
+        (r && r.results || []).forEach(function (res) {
+          var a = {};
+          (res.attributes || []).forEach(function (x) { a[x.name] = x.value; });
+          if (a.physicalid) achados[a.physicalid] = a['ds6w:identifier'] || '';
+        });
+      }).catch(function (e) { falhas++; amostra.erroDesenhos = textoErro(e); });
+    }
+    function detalhar(id) {
+      return requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dsxcad/dsxcad:Drawing/' + encodeURIComponent(id) + '?$mask=dsmvxcad:xCADDrawingMask.Details')
+        .then(function (r) {
+          var d = r && r.member && r.member[0];
+          if (!d) return;
+          ((d.relatedData || {}).member || []).forEach(function (l) {
+            var alvo = l.referencedObject && l.referencedObject.id;
+            if (!alvo) return;
+            var atual = desenhos[alvo];
+            if (!atual || (ORDEM_DES[d.state] || 0) > (ORDEM_DES[atual.state] || 0)) desenhos[alvo] = { state: d.state, name: d.name, title: d.title };
+          });
+        }).catch(function (e) { falhas++; amostra.erroDesenhoDetalhe = textoErro(e); });
+    }
+    var cadeia = lotes.length ? buscarLote(lotes[0]).then(function () { return Promise.all(lotes.slice(1).map(buscarLote)); }) : Promise.resolve();
+    cadeia.then(function () {
+      var ids = Object.keys(achados);
+      amostra.desenhosAchados = ids.length;
+      // detalha de 6 em 6 para não sobrecarregar a 3DX
+      var grupos = [];
+      for (var g = 0; g < ids.length; g += 6) grupos.push(ids.slice(g, g + 6));
+      return grupos.reduce(function (p, grupo) { return p.then(function () { return Promise.all(grupo.map(detalhar)); }); }, Promise.resolve());
+    }).then(function () {
+      desenhosEstado = falhas && !Object.keys(desenhos).length ? 'erro' : 'ok';
+      anotar('Desenhos', desenhosEstado === 'erro' ? 'ERRO' : 'OK', Object.keys(desenhos).length + ' item(ns) com desenho' + (falhas ? ' · ' + falhas + ' falha(s)' : ''));
+      desenhar();
+    });
+  }
+
+  // situação do desenho de um item: 'RELEASED', 'IN_WORK'..., 'FALTA', ou null enquanto carrega
+  function statusDesenho(item) {
+    if (desenhosEstado === 'ok') return desenhos[item.id] ? desenhos[item.id].state : 'FALTA';
+    if (desenhosEstado === 'erro') return 'ERRO';
+    return null;
+  }
+
+  function tagDesenho(item) {
+    var s = statusDesenho(item);
+    if (s === null) return '<span class="sm-vazio">...</span>';
+    if (s === 'ERRO') return '<span class="sm-vazio">erro</span>';
+    if (s === 'FALTA') return '<span class="sm-tag t-pai">falta</span>';
+    return '<span class="sm-est e-' + esc(s) + '">' + esc(rotulo(s)) + '</span>';
+  }
+
+  function resumoDesenhos() {
+    var itens = dados.unicos.map(function (u) { return u.item; }).concat([dados.raiz.item]);
+    var r = { total: itens.length, lib: 0, naoLib: 0, sem: 0 };
+    itens.forEach(function (it) {
+      var s = statusDesenho(it);
+      if (s === 'RELEASED') r.lib++; else if (s === 'FALTA') r.sem++; else if (s) r.naoLib++;
+    });
+    r.faltam = r.sem + r.naoLib;
+    return r;
+  }
+
+  // itens que pedem ação: parados, pendentes sob pai liberado e liberados sem desenho liberado
+  function listaAcao() {
+    var lista = [], porId = {};
+    dados.acao.forEach(function (u) { var e = { u: u, semDes: false }; lista.push(e); porId[u.item.id] = e; });
+    if (desenhosEstado === 'ok') {
+      var r = dados.raiz.item;
+      dados.unicos.concat([{ item: r, dias: diasDesde(r.modified), pais: {}, parado: false, paiLiberado: false }]).forEach(function (u) {
+        if (u.item.state === 'RELEASED' && statusDesenho(u.item) !== 'RELEASED') {
+          if (porId[u.item.id]) porId[u.item.id].semDes = true;
+          else { var e = { u: u, semDes: true }; lista.push(e); porId[u.item.id] = e; }
+        }
+      });
+    }
+    function peso(e) { return (e.u.paiLiberado ? 2 : 0) + (e.semDes ? 2 : 0) + (e.u.parado ? 1 : 0); }
+    return lista.sort(function (a, b) { return peso(b) - peso(a) || (b.u.dias || 0) - (a.u.dias || 0); });
+  }
+
   function celulaThumb(item, idx) {
     var url = thumbs[item.name], miolo;
     if (url) miolo = '<div class="sm-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" /></div>';
@@ -512,6 +634,7 @@
             '<dt>Estado</dt><dd><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></dd>' +
             '<dt>Owner</dt><dd>' + esc(it.owner) + '</dd>' +
             '<dt>Modificado</dt><dd>' + esc(dataBR(it.modified)) + (n.dias === null || n.dias === undefined ? '' : ' · ' + n.dias + ' dia(s) sem alteração') + '</dd>' +
+            '<dt>Desenho</dt><dd>' + tagDesenho(it) + (desenhos[it.id] ? ' <span class="sm-mono">' + esc(desenhos[it.id].name) + '</span>' : '') + '</dd>' +
             '<dt>Nível</dt><dd>' + n.nivel + (n.filhos.length ? ' · ' + n.filhos.length + ' filho(s)' : '') + '</dd>' +
             (alertas.length ? '<dt>Alertas</dt><dd>' + alertas.join(' ') + '</dd>' : '') +
           '</dl>' +
@@ -621,7 +744,7 @@
           percorrer(f);
         });
       })(n);
-      return { no: n, total: total, cont: cont, parados: parados, pai: pai };
+      return { no: n, total: total, cont: cont, parados: parados, pai: pai, ids: Object.keys(vistos) };
     });
 
     // pendências por owner
@@ -702,6 +825,21 @@
       '<span class="sm-est e-' + esc(r.state) + '">' + esc(rotulo(r.state)) + '</span>' +
       '<span style="color:#4F5864;font-size:13px">owner ' + esc(r.owner) + '</span></div>';
 
+    // o que falta: itens e desenhos
+    var naoLib = d.unicos.filter(function (u) { return u.item.state !== 'RELEASED' && u.item.state !== 'OBSOLETE'; }).length;
+    var rd = resumoDesenhos();
+    var desCarregando = desenhosEstado === '' || desenhosEstado === 'carregando';
+    html += '<div class="sm-cards">' +
+      '<div class="sm-card' + (naoLib ? ' destaque' : '') + '"><span class="r">Faltam liberar</span><span class="v">' + naoLib + ' <small>itens</small></span><span class="d">de ' + total + ' itens únicos</span></div>' +
+      '<div class="sm-card' + (!desCarregando && rd.faltam ? ' destaque' : '') + '"><span class="r">Faltam desenhos</span>' +
+        (desCarregando ? '<span class="v">...</span><span class="d">consultando a 3DX</span>'
+          : desenhosEstado === 'erro' ? '<span class="v">—</span><span class="d">não consegui ler os desenhos</span>'
+          : '<span class="v">' + rd.faltam + ' <small>desenhos</small></span><span class="d">' + rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)</span>') + '</div>' +
+      '<div class="sm-card"><span class="r">Desenhos liberados</span>' +
+        (desCarregando || desenhosEstado === 'erro' ? '<span class="v">—</span>' : '<span class="v">' + rd.lib + ' <small>de ' + rd.total + '</small></span>') +
+        '<span class="d">peças, submontagens e a montagem principal</span></div>' +
+      '</div>';
+
     // indicadores
     html += '<div class="sm-cards">';
     html += '<div class="sm-card"><span class="r">Itens únicos</span><span class="v">' + total + '</span><span class="d">' + d.nos.length + ' ocorrências na estrutura</span></div>';
@@ -710,9 +848,11 @@
       var n = d.porEstado[s] || 0;
       html += '<div class="sm-card"><span class="r">' + esc(rotulo(s)) + '</span><span class="v">' + n + ' <small>' + pct(n, total) + '%</small></span></div>';
     });
-    var atencao = d.acao.length;
+    var acaoLista = listaAcao();
+    var atencao = acaoLista.length;
+    var semDesLib = acaoLista.filter(function (e) { return e.semDes; }).length;
     html += '<div class="sm-card' + (atencao ? ' alerta' : '') + '"><span class="r">Pedem ação</span><span class="v">' + atencao + '</span>' +
-      '<span class="d">' + d.parados + ' parado(s) · ' + d.paiLib + ' com pai liberado</span></div>';
+      '<span class="d">' + d.parados + ' parado(s) · ' + d.paiLib + ' com pai liberado' + (desenhosEstado === 'ok' ? ' · ' + semDesLib + ' liberado(s) sem desenho' : '') + '</span></div>';
     html += '</div>';
     html += '<div>' + barraEstados(d.porEstado, total) + '<div class="sm-legenda">' +
       ORDEM_EST.concat(Object.keys(d.porEstado).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; })).filter(function (s) { return d.porEstado[s]; }).map(function (s) {
@@ -739,16 +879,22 @@
     html += '<div class="sm-caixa"><h2 class="sm-secao-t">Maturidade por submontagem (1º nível)</h2>';
     if (!d.subs.length) html += '<p class="sm-vazio">Esta montagem não tem submontagens no 1º nível.</p>';
     else {
-      html += '<div class="sm-tabela"><table style="min-width:640px"><thead><tr><th>Submontagem</th><th>Estado</th><th class="num">Itens</th><th style="width:34%">Distribuição</th><th class="num">Liberado</th><th>Alertas</th></tr></thead><tbody>';
+      html += '<div class="sm-tabela"><table style="min-width:640px"><thead><tr><th>Submontagem</th><th>Estado</th><th class="num">Itens</th><th style="width:30%">Distribuição</th><th class="num">Liberado</th><th class="num">Desenhos liberados</th><th>Alertas</th></tr></thead><tbody>';
       d.subs.forEach(function (s) {
         var it = s.no.item, l = s.cont.RELEASED || 0;
+        var celDes = '...';
+        if (desenhosEstado === 'ok') {
+          var idsDes = s.ids.concat([it.id]), libDes = 0, vistosDes = {};
+          idsDes.forEach(function (id) { if (vistosDes[id]) return; vistosDes[id] = 1; if (desenhos[id] && desenhos[id].state === 'RELEASED') libDes++; });
+          celDes = libDes + ' de ' + Object.keys(vistosDes).length;
+        } else if (desenhosEstado === 'erro') celDes = '—';
         var alertas = '';
         if (s.no.temFilhoPendente) alertas += '<span class="sm-tag t-pai">liberada com filho pendente</span> ';
         if (s.parados) alertas += '<span class="sm-tag t-parado">' + s.parados + ' parado(s)</span>';
         html += '<tr' + (s.no.temFilhoPendente ? ' class="marcada"' : '') + '><td><strong>' + esc(it.title || it.name) + '</strong> <span class="sm-mono">' + esc(it.name) + '</span></td>' +
           '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
           '<td class="num">' + s.total + '</td><td>' + barraEstados(s.cont, s.total) + '</td>' +
-          '<td class="num">' + pct(l, s.total) + '%</td><td>' + (alertas || '<span class="sm-vazio">—</span>') + '</td></tr>';
+          '<td class="num">' + pct(l, s.total) + '%</td><td class="num">' + celDes + '</td><td>' + (alertas || '<span class="sm-vazio">—</span>') + '</td></tr>';
       });
       html += '</tbody></table></div>';
     }
@@ -756,18 +902,19 @@
 
     // itens que pedem ação
     html += '<div class="sm-caixa"><h2 class="sm-secao-t">Itens que pedem ação</h2>';
-    if (!d.acao.length) html += '<p class="sm-vazio">Nenhum item parado há ' + cfg.limite + ' dias ou mais e nenhum item pendente sob pai liberado.</p>';
+    if (!acaoLista.length) html += '<p class="sm-vazio">Nenhum item parado há ' + cfg.limite + ' dias ou mais, nenhum item pendente sob pai liberado' + (desenhosEstado === 'ok' ? ' e nenhum item liberado sem desenho liberado' : '') + '.</p>';
     else {
-      html += '<div class="sm-tabela"><table style="min-width:820px"><thead><tr><th>Título</th><th>Item</th><th>Rev.</th><th>Estado</th><th>Owner</th><th>Por que está aqui</th><th class="num">Sem alteração</th></tr></thead><tbody>';
-      d.acao.slice(0, 200).forEach(function (u) {
-        var it = u.item, motivos = [];
+      html += '<div class="sm-tabela"><table style="min-width:900px"><thead><tr><th>Título</th><th>Item</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Owner</th><th>Por que está aqui</th><th class="num">Sem alteração</th></tr></thead><tbody>';
+      acaoLista.slice(0, 200).forEach(function (e) {
+        var u = e.u, it = u.item, motivos = [];
         if (u.paiLiberado) motivos.push('<span class="sm-tag t-pai">pai liberado: ' + esc(Object.keys(u.pais).join(', ')) + '</span>');
+        if (e.semDes) motivos.push('<span class="sm-tag t-pai">liberado sem desenho liberado</span>');
         if (u.parado) motivos.push('<span class="sm-tag t-parado">parado</span>');
         html += '<tr><td>' + esc(it.title) + '</td><td class="sm-mono">' + esc(it.name) + '</td><td>' + esc(it.revision) + '</td>' +
-          '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + esc(it.owner) + '</td>' +
-          '<td>' + motivos.join(' ') + '</td><td class="num">' + (u.dias === null ? '—' : u.dias + ' dias') + '</td></tr>';
+          '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
+          '<td>' + motivos.join(' ') + '</td><td class="num">' + (u.dias === null || u.dias === undefined ? '—' : u.dias + ' dias') + '</td></tr>';
       });
-      html += '</tbody></table></div>' + (d.acao.length > 200 ? '<p class="sm-nota">Mostrando 200 de ' + d.acao.length + '. Use Exportar para ver todos.</p>' : '');
+      html += '</tbody></table></div>' + (acaoLista.length > 200 ? '<p class="sm-nota">Mostrando 200 de ' + acaoLista.length + '. Use Exportar para ver todos.</p>' : '');
     }
     html += '</div>';
 
@@ -794,7 +941,7 @@
       }
     })(dados.raiz);
 
-    var html = '<table style="min-width:900px"><thead><tr><th class="num">Nível</th><th>Título</th><th>Thumbnail</th><th>Rev.</th><th>Estado</th><th>Modificado</th><th>Owner</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
+    var html = '<table style="min-width:900px"><thead><tr><th class="num">Nível</th><th>Título</th><th>Thumbnail</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Modificado</th><th>Owner</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
     linhas.forEach(function (n) {
       var it = n.item, recuo = (n.nivel - 1) * 22;
       var botao = n.filhos.length
@@ -811,6 +958,7 @@
         '<td class="sm-celthumb">' + celulaThumb(it, n.idx) + '</td>' +
         '<td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
+        '<td>' + tagDesenho(it) + '</td>' +
         '<td>' + esc(dataBR(it.modified)) + '</td><td>' + esc(it.owner) + '</td>' +
         '<td class="num">' + (n.dias === null ? '—' : n.dias) + '</td><td>' + (alertas || '') + '</td></tr>';
     });
@@ -833,16 +981,18 @@
     if (!dados) return;
     var sep = ';';
     function cel(v) { v = String(v == null ? '' : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
-    var linhas = [['Nível', 'Item', 'Título', 'Revisão', 'Estado', 'Owner', 'Modificado', 'Dias sem alteração', 'Alertas'].join(sep)];
+    function des(it) { var s = statusDesenho(it); return s === null ? '' : s === 'FALTA' ? 'Falta' : s === 'ERRO' ? '' : rotulo(s); }
+    var linhas = [['Nível', 'Item', 'Título', 'Revisão', 'Estado', 'Desenho', 'Owner', 'Modificado', 'Dias sem alteração', 'Alertas'].join(sep)];
     var r = dados.raiz.item;
-    linhas.push(['0', r.name, r.title, r.revision, rotulo(r.state), r.owner, dataBR(r.modified), '', ''].map(cel).join(sep));
+    linhas.push(['0', r.name, r.title, r.revision, rotulo(r.state), des(r), r.owner, dataBR(r.modified), '', ''].map(cel).join(sep));
     (function percorrer(no) {
       no.filhos.forEach(function (n) {
         var it = n.item, a = [];
         if (n.temFilhoPendente) a.push('filho pendente');
         if (n.paiLiberado) a.push('pai liberado');
         if (n.parado) a.push('parado');
-        linhas.push([n.nivel, it.name, it.title, it.revision, rotulo(it.state), it.owner, dataBR(it.modified), n.dias === null ? '' : n.dias, a.join(', ')].map(cel).join(sep));
+        if (it.state === 'RELEASED' && statusDesenho(it) && statusDesenho(it) !== 'RELEASED' && statusDesenho(it) !== 'ERRO') a.push('liberado sem desenho liberado');
+        linhas.push([n.nivel, it.name, it.title, it.revision, rotulo(it.state), des(it), it.owner, dataBR(it.modified), n.dias === null ? '' : n.dias, a.join(', ')].map(cel).join(sep));
         percorrer(n);
       });
     })(dados.raiz);
