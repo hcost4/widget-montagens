@@ -10,7 +10,8 @@
 <meta name="strictMode" content="false" />
 <script type="text/javascript" src="https://uwa.netvibes.com/lib/c/UWA/js/UWA_Standalone_Alone.js"></script>
 <style>
-  .sm-root { font-family: "Segoe UI", Arial, sans-serif; color: #1B1F24; font-size: 14px; padding: 16px; box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  .sm-root { font-family: "Segoe UI", Arial, sans-serif; color: #1B1F24; font-size: 14px; padding: 16px; box-sizing: border-box; height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
   .sm-root * { box-sizing: border-box; }
   .sm-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
   .sm-titulo h1 { margin: 0; font-size: 17px; font-weight: 600; }
@@ -49,7 +50,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'teste-2 (30/10/2026)';
+  var VERSAO = 'teste-3 (30/10/2026)';
   var WAF = null, Compass = null;
   var conectado = false;
   var estado = { spaceUrl: null, platformId: null, ctx: null, csrf: null, usuario: null };
@@ -241,7 +242,21 @@
     });
   }
 
+  function lerSpaceSalvo() {
+    try { return window.localStorage.getItem('sm-space') || ''; } catch (x) { return ''; }
+  }
+  function salvarSpace(v) {
+    try { window.localStorage.setItem('sm-space', v); } catch (x) { }
+  }
+
   function conectar() {
+    lerPlatformId();
+    var salvo = lerSpaceSalvo();
+    if (salvo) {
+      anotar('1. Serviços da plataforma', '...', 'usando endereço salvo');
+      continuarConexao({ '3DSpace': salvo, platformId: amostra.x3dPlatformId, displayName: 'salvo' });
+      return;
+    }
     anotar('1. Serviços da plataforma', '...');
     obterSpace().then(function (p) {
       continuarConexao(p);
@@ -277,6 +292,7 @@
       if (!r || !r.csrf || !r.csrf.name) throw new Error('resposta sem token');
       estado.csrf = r.csrf;
       conectado = true;
+      salvarSpace(estado.spaceUrl);
       anotar('3. Token de segurança (CSRF)', 'OK');
       $('sm-info').textContent = 'Conectado como ' + estado.usuario + ' · ' + estado.ctx.replace('ctx::', '');
       $('sm-buscar').disabled = false;
@@ -285,6 +301,8 @@
       var pendente = registro.filter(function (r) { return r.situacao === '...'; })[0];
       anotar(pendente ? pendente.etapa : 'Conexão', 'ERRO', textoErro(e));
       $('sm-info').textContent = 'Não foi possível conectar. Veja as etapas abaixo.';
+      salvarSpace('');
+      pedirSpaceManual();
     });
   }
 
@@ -315,19 +333,27 @@
     }).then(function (r) {
       var membros = (r && r.member) || [];
       amostra.expansao = { total: membros.length, primeiros: membros.slice(0, 6) };
-      var refs = {}, caminhos = [], nInst = 0;
+      var refs = {}, caminhos = [], nInst = 0, porTipo = {}, exInst = [];
       membros.forEach(function (m) {
         var p = m.Path || m.path;
+        var tipo = Array.isArray(p) ? '(Path)' : (m.type || '(sem tipo)');
+        porTipo[tipo] = (porTipo[tipo] || 0) + 1;
         if (Array.isArray(p)) { caminhos.push(p); return; }
-        if (/instance/i.test(m.type || '')) { nInst++; return; }
+        if (/instance/i.test(m.type || '')) { nInst++; if (exInst.length < 2) exInst.push(m); return; }
         if (m.id) refs[m.id] = m;
       });
+      amostra.expansao.porTipo = porTipo;
+      amostra.expansao.exemplosCaminho = caminhos.slice(0, 4);
+      amostra.expansao.exemplosInstancia = exInst;
       var linhas = [];
       if (caminhos.length) {
+        // ordena os caminhos para a lista seguir a árvore (pai antes dos filhos)
+        caminhos.sort(function (a, b) { var x = a.join('/'), y = b.join('/'); return x < y ? -1 : (x > y ? 1 : 0); });
         caminhos.forEach(function (p) {
           var ultimo = p[p.length - 1];
           if (ultimo === raiz.id || !refs[ultimo]) return;
-          linhas.push({ nivel: (p.length - 1) / 2, item: refs[ultimo] });
+          var nivel = p.filter(function (id) { return !!refs[id]; }).length - 1;
+          linhas.push({ nivel: nivel, item: refs[ultimo] });
         });
       } else {
         Object.keys(refs).forEach(function (id) { if (id !== raiz.id) linhas.push({ nivel: '-', item: refs[id] }); });
@@ -353,7 +379,8 @@
     var corpo = '';
     linhas.slice(0, 500).forEach(function (l) {
       var m = l.item, s = m.state || '';
-      corpo += '<tr><td>' + esc(l.nivel) + '</td><td>' + esc(m.name) + '</td><td>' + esc(m.title) + '</td><td>' + esc(m.revision) +
+      var recuo = (typeof l.nivel === 'number' && l.nivel > 1) ? (l.nivel - 1) * 16 : 0;
+      corpo += '<tr><td>' + esc(l.nivel) + '</td><td style="padding-left:' + (6 + recuo) + 'px">' + esc(m.name) + '</td><td>' + esc(m.title) + '</td><td>' + esc(m.revision) +
         '</td><td><span class="sm-est sm-est-' + esc(s) + '">' + esc(ROTULOS[s] || s) + '</span></td><td>' + esc(m.owner) +
         '</td><td>' + esc((m.modified || '').slice(0, 10)) + '</td><td style="text-align:right">' + esc(diasDesde(m.modified)) + '</td></tr>';
     });
