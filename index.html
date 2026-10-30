@@ -53,6 +53,8 @@
   .sm-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 8px; white-space: nowrap; }
   .t-pai { background: #FDF3F2; color: #9B2C20; border: 1px solid #E8B4AD; }
   .t-parado { background: #FFF1CC; color: #6B4700; border: 1px solid #F0D79A; }
+  .t-2d { background: #EEF2F8; color: #1F4A7A; border: 1px solid #B9CBE2; }
+  .sm-tabela tr.sm-linha2d td { background: #FAFBFD; }
   .sm-tabela { overflow-x: auto; }
   .sm-tabela table { width: 100%; border-collapse: collapse; font-size: 13px; }
   .sm-tabela th { text-align: left; font-weight: 600; color: #4F5864; font-size: 12px; padding: 7px 6px; border-bottom: 1px solid #E3E6EA; white-space: nowrap; }
@@ -103,7 +105,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'mvp-5 (30/10/2026)';
+  var VERSAO = 'mvp-6 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -122,6 +124,7 @@
   var thumbsEstado = '';  // '', 'carregando', 'ok', 'erro'
   var desenhos = {};      // id do item (VPMReference) -> { state, name } do melhor desenho ligado a ele
   var desenhosEstado = ''; // '', 'carregando', 'ok', 'erro'
+  var desenhosLista = {};  // id do item -> lista de todos os desenhos ligados a ele (para a árvore)
   var cfg = { limite: 15, metaPct: 90, metaData: '' };
 
   var ROTULOS = { IN_WORK: 'Em trabalho', FROZEN: 'Congelado', RELEASED: 'Liberado', PRIVATE: 'Privado', OBSOLETE: 'Obsoleto' };
@@ -418,7 +421,7 @@
       bruto = { raiz: raiz, membros: membros, lido: agora() };
       aberto = {};
       thumbs = {}; thumbsEstado = '';
-      desenhos = {}; desenhosEstado = '';
+      desenhos = {}; desenhosEstado = ''; desenhosLista = {};
       processar();
       anotar('Expansão', 'OK', dados.unicos.length + ' itens únicos, ' + dados.nos.length + ' ocorrências');
       desenhar();
@@ -534,6 +537,10 @@
             if (!alvo) return;
             var atual = desenhos[alvo];
             if (!atual || (ORDEM_DES[d.state] || 0) > (ORDEM_DES[atual.state] || 0)) desenhos[alvo] = { state: d.state, name: d.name, title: d.title };
+            var lista = desenhosLista[alvo] || (desenhosLista[alvo] = []);
+            if (!lista.some(function (x) { return x.id === d.id; })) {
+              lista.push({ id: d.id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing' });
+            }
           });
         }).catch(function (e) { falhas++; amostra.erroDesenhoDetalhe = textoErro(e); });
     }
@@ -647,23 +654,56 @@
 
   function fecharModal() { noModal = null; if ($('sm-modal')) $('sm-modal').innerHTML = ''; }
 
+  // link da plataforma que abre um app já com o item carregado (protocolo 3DXContent)
+  function linkApp(appId, it) {
+    var f = infoFed();
+    if (!f) return null;
+    var dash = estado.spaceUrl.replace('-space.', '-ifwe.').replace(/\/enovia\/?$/, '');
+    var conteudo = {
+      protocol: '3DXContent', version: '1.1', source: appId, widgetId: '',
+      data: { items: [{ envId: f.tenant, serviceId: '3DSpace', contextId: estado.ctx, objectId: it.id, objectType: it.type || 'VPMReference', displayName: it.title || it.name, displayType: it.type === 'Drawing' ? 'Drawing' : 'Physical Product' }] }
+    };
+    return dash + '/#app:' + appId + '/content:X3DContentId=' + encodeURIComponent(JSON.stringify(conteudo));
+  }
+
   function abrir3D() {
     if (!noModal) return;
-    var it = noModal.item;
-    function falhou(msg) {
-      anotar('Abrir em 3D', 'ERRO', msg);
-      if ($('sm-modal-msg')) $('sm-modal-msg').innerHTML = '<div class="sm-erro">Não consegui abrir o 3DPlay: ' + esc(msg) + '</div>';
+    var it = noModal.item, feito = false;
+    function msg(html) { if ($('sm-modal-msg')) $('sm-modal-msg').innerHTML = html; }
+    function porLink(motivo) {
+      if (feito) return; feito = true;
+      var url = linkApp(APP_3D, it);
+      if (!url) { anotar('Abrir em 3D', 'ERRO', 'não montei o link'); msg('<div class="sm-erro">Não consegui montar o link do 3DPlay.</div>'); return; }
+      var janela = null;
+      try { janela = window.open(url, '_blank'); } catch (x) { }
+      anotar('Abrir em 3D', 'OK', 'nova aba (' + motivo + ')');
+      msg(janela
+        ? '<div class="sm-aviso">Abri o 3DPlay numa nova aba com este item. Se aparecer um aviso de acesso, o seu usuário não tem o app 3DPlay.</div>'
+        : '<div class="sm-aviso">O navegador bloqueou a nova aba. <a href="' + esc(url) + '" target="_blank" rel="noopener">Clique aqui para abrir o 3DPlay</a>.</div>');
     }
-    if (typeof require !== 'function') { falhou('fora do 3DDashboard'); return; }
-    require(['DS/TransientWidget/TransientWidget'], function (TW) {
+    // janela da própria 3DX por cima do dashboard, quando o módulo existe aqui; senão, nova aba pelo link
+    if (moduloJanelas && moduloJanelas.showWidget) {
       try {
-        TW.showWidget(APP_3D, it.title || it.name, {
+        moduloJanelas.showWidget(APP_3D, it.title || it.name, {
           input: { asset: { physicalid: it.id, dtype: it.type || 'VPMReference', provider: 'EV6', serviceId: '3DSpace', contextId: estado.ctx } }
         });
-        anotar('Abrir em 3D', 'OK', it.name);
+        feito = true;
+        anotar('Abrir em 3D', 'OK', 'janela da 3DX · ' + it.name);
         fecharModal();
-      } catch (e) { falhou(textoErro(e)); }
-    }, function (e) { falhou('módulo de janelas da 3DX indisponível'); });
+        return;
+      } catch (e) { /* cai para o link */ }
+    }
+    porLink(moduloJanelas === false ? 'módulo de janelas indisponível' : 'sem janela da 3DX');
+  }
+
+  // verifica uma vez, na abertura, se o módulo de janelas da 3DX existe dentro do widget
+  var moduloJanelas = null;
+  function verificarModuloJanelas() {
+    if (typeof require !== 'function') { moduloJanelas = false; return; }
+    try {
+      require(['DS/TransientWidget/TransientWidget'], function (TW) { moduloJanelas = TW || false; amostra.moduloJanelas = !!TW; },
+        function () { moduloJanelas = false; amostra.moduloJanelas = false; });
+    } catch (e) { moduloJanelas = false; }
   }
 
   // ---------- processamento ----------
@@ -929,24 +969,55 @@
     desenharArvore();
   }
 
+  function desenhosDe(no) { return desenhosEstado === 'ok' ? (desenhosLista[no.item.id] || []) : []; }
+  function temConteudo(no) { return no.filhos.length > 0 || desenhosDe(no).length > 0; }
+
+  var ICONE_2D = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M5 3h10l4 4v14H5z"></path><path d="M15 3v4h4"></path><path d="M8 17l3-5 2 3 1.5-2L17 17z"></path></svg>';
+
+  function linhaDesenho(n, d) {
+    var recuo = n.nivel * 22, dias = diasDesde(d.modified);
+    var alerta = n.item.state === 'RELEASED' && d.state !== 'RELEASED' ? '<span class="sm-tag t-pai">peça liberada, desenho não</span>' : '';
+    return '<tr class="sm-linha2d">' +
+      '<td class="num">' + (n.nivel + 1) + '</td>' +
+      '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(d.name) + '"><span class="sm-tg-vazio"></span>' +
+        '<span class="sm-tag t-2d">2D</span><span>' + esc(d.title || d.name) + '</span><span class="sm-filhos">desenho de ' + esc(n.item.title || n.item.name) + '</span></span></td>' +
+      '<td class="sm-celthumb"><div class="sm-thumb vazio" style="color:#4F5864">' + ICONE_2D + '</div></td>' +
+      '<td>' + esc(d.revision) + '</td>' +
+      '<td><span class="sm-est e-' + esc(d.state) + '">' + esc(rotulo(d.state)) + '</span></td>' +
+      '<td><span class="sm-vazio">—</span></td>' +
+      '<td>' + esc(dataBR(d.modified)) + '</td><td>' + esc(d.owner) + '</td>' +
+      '<td class="num">' + (dias === null ? '—' : dias) + '</td><td>' + alerta + '</td></tr>';
+  }
+
   function desenharArvore() {
-    var linhas = [];
+    var linhas = [];   // { no } para itens 3D, { no, d } para desenhos 2D
     var cortado = false;
     (function percorrer(no) {
       for (var i = 0; i < no.filhos.length; i++) {
         if (linhas.length >= LIMITE_LINHAS) { cortado = true; return; }
         var f = no.filhos[i];
-        linhas.push(f);
-        if (aberto[f.idx] && f.filhos.length) percorrer(f);
+        linhas.push({ no: f });
+        if (aberto[f.idx]) {
+          desenhosDe(f).forEach(function (d) { linhas.push({ no: f, d: d }); });
+          if (f.filhos.length) percorrer(f);
+        }
       }
     })(dados.raiz);
 
     var html = '<table style="min-width:900px"><thead><tr><th class="num">Nível</th><th>Título</th><th>Thumbnail</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Modificado</th><th>Owner</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
-    linhas.forEach(function (n) {
+    var n3d = 0;
+    linhas.forEach(function (l) {
+      if (l.d) { html += linhaDesenho(l.no, l.d); return; }
+      n3d++;
+      var n = l.no;
       var it = n.item, recuo = (n.nivel - 1) * 22;
-      var botao = n.filhos.length
+      var nDes = desenhosDe(n).length;
+      var botao = temConteudo(n)
         ? '<button type="button" class="sm-tg" data-idx="' + n.idx + '" aria-expanded="' + (aberto[n.idx] ? 'true' : 'false') + '" aria-label="' + (aberto[n.idx] ? 'Recolher' : 'Expandir') + ' ' + esc(it.title || it.name) + '">' + (aberto[n.idx] ? ICONE_ABERTO : ICONE_FECHADO) + '</button>'
         : '<span class="sm-tg-vazio"></span>';
+      var contagem = [];
+      if (n.filhos.length) contagem.push(n.filhos.length);
+      if (nDes) contagem.push(nDes + ' 2D');
       var alertas = '';
       if (n.temFilhoPendente) alertas += '<span class="sm-tag t-pai">filho pendente</span> ';
       if (n.paiLiberado) alertas += '<span class="sm-tag t-pai">pai liberado</span> ';
@@ -954,7 +1025,7 @@
       html += '<tr' + (n.paiLiberado || n.temFilhoPendente ? ' class="marcada"' : '') + '>' +
         '<td class="num">' + n.nivel + '</td>' +
         '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(it.name) + '">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
-          (n.filhos.length ? '<span class="sm-filhos">(' + n.filhos.length + ')</span>' : '') + '</span></td>' +
+          (contagem.length ? '<span class="sm-filhos">(' + contagem.join(' · ') + ')</span>' : '') + '</span></td>' +
         '<td class="sm-celthumb">' + celulaThumb(it, n.idx) + '</td>' +
         '<td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
@@ -965,14 +1036,14 @@
     html += '</tbody></table>';
     $('sm-arvore').innerHTML = html;
     var abertos = Object.keys(aberto).length;
-    $('sm-arvore-nota').textContent = 'Mostrando ' + linhas.length + ' de ' + dados.nos.length + ' linhas' +
-      (abertos ? '' : ' · use as setas para abrir as submontagens') +
+    $('sm-arvore-nota').textContent = 'Mostrando ' + n3d + ' de ' + dados.nos.length + ' itens 3D' + (linhas.length > n3d ? ' e ' + (linhas.length - n3d) + ' desenho(s) 2D' : '') +
+      (abertos ? '' : ' · use as setas para abrir as submontagens e ver os desenhos') +
       (cortado ? ' · lista cortada em ' + LIMITE_LINHAS + ' linhas, use Exportar para ver tudo' : '') + '.';
   }
 
   function expandirTudo() {
     aberto = {};
-    dados.nos.forEach(function (n) { if (n.filhos.length) aberto[n.idx] = true; });
+    dados.nos.forEach(function (n) { if (temConteudo(n)) aberto[n.idx] = true; });
     desenharArvore();
   }
 
@@ -1077,6 +1148,7 @@
       clearTimeout(esperando);
       WAF = W;
       conectar();
+      verificarModuloJanelas();
     }, function () { clearTimeout(esperando); modoForaDoDashboard(); });
   }
 
