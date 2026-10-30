@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:widget="http://www.netvibes.com/ns/">
+<head>
+<meta charset="utf-8" />
+<title>Status de Montagens - Teste</title>
+<meta name="author" content="SKA" />
+<meta name="description" content="Teste técnico: lê uma montagem da 3DEXPERIENCE usando a sessão do usuário." />
+<meta name="apiVersion" content="1.3" />
+<meta name="debugMode" content="false" />
+<meta name="strictMode" content="false" />
+<script type="text/javascript" src="https://uwa.netvibes.com/lib/c/UWA/js/UWA_Standalone_Alone.js"></script>
+<style>
+  .sm-root { font-family: "Segoe UI", Arial, sans-serif; color: #1B1F24; font-size: 14px; padding: 16px; box-sizing: border-box; }
+  .sm-root * { box-sizing: border-box; }
+  .sm-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .sm-titulo h1 { margin: 0; font-size: 17px; font-weight: 600; }
+  .sm-versao { font-size: 12px; color: #4F5864; }
+  .sm-info { font-size: 13px; color: #4F5864; margin-bottom: 12px; }
+  .sm-busca { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
+  .sm-busca label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #4F5864; font-weight: 600; }
+  .sm-busca input { height: 38px; min-width: 260px; padding: 0 10px; border: 1px solid #C3C9D1; border-radius: 4px; font-size: 14px; }
+  .sm-btn { height: 38px; padding: 0 16px; border: 0; border-radius: 4px; background: #1D3B5A; color: #fff; font-size: 14px; cursor: pointer; }
+  .sm-btn[disabled] { background: #8A929C; cursor: default; }
+  .sm-btn2 { height: 34px; padding: 0 12px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; color: #1B1F24; font-size: 13px; cursor: pointer; }
+  .sm-caixa { border: 1px solid #E3E6EA; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; }
+  .sm-caixa h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
+  .sm-log { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+  .sm-log li { padding: 4px 0; display: flex; gap: 8px; align-items: baseline; }
+  .sm-tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 8px; min-width: 42px; text-align: center; }
+  .sm-ok { background: #E3F1E8; color: #1E5A36; }
+  .sm-erro { background: #FDF3F2; color: #9B2C20; }
+  .sm-and { background: #EEF0F3; color: #3A414A; }
+  .sm-detalhe { color: #4F5864; word-break: break-word; }
+  .sm-cards { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .sm-card { border: 1px solid #E3E6EA; border-radius: 6px; padding: 10px 14px; min-width: 130px; }
+  .sm-card span { display: block; font-size: 12px; color: #4F5864; }
+  .sm-card strong { display: block; font-size: 22px; font-weight: 600; margin-top: 2px; }
+  .sm-tabela { overflow-x: auto; }
+  .sm-tabela table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
+  .sm-tabela th { text-align: left; font-weight: 600; color: #4F5864; font-size: 12px; padding: 6px; border-bottom: 1px solid #E3E6EA; }
+  .sm-tabela td { padding: 7px 6px; border-bottom: 1px solid #EEF0F3; }
+  .sm-est { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #EEF0F3; color: #3A414A; white-space: nowrap; }
+  .sm-est-RELEASED { background: #E3F1E8; color: #1E5A36; }
+  .sm-est-FROZEN { background: #E4EEF8; color: #1F4A7A; }
+  .sm-est-IN_WORK { background: #FCEBD9; color: #8A4A0B; }
+  .sm-aviso { background: #FFF8E6; border: 1px solid #F0D79A; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; }
+  .sm-diag textarea { width: 100%; height: 220px; font-family: Consolas, monospace; font-size: 12px; border: 1px solid #C3C9D1; border-radius: 4px; padding: 8px; }
+  .sm-diag summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+</style>
+<script type="text/javascript">
+(function () {
+  var VERSAO = 'teste-1 (30/10/2026)';
+  var WAF = null, Compass = null;
+  var conectado = false;
+  var estado = { spaceUrl: null, platformId: null, ctx: null, csrf: null, usuario: null };
+  var registro = [];
+  var amostra = {};
+
+  var ROTULOS = { IN_WORK: 'Em trabalho', FROZEN: 'Congelado', RELEASED: 'Liberado', PRIVATE: 'Privado', OBSOLETE: 'Obsoleto' };
+
+  var TEMPLATE =
+    '<div class="sm-root">' +
+      '<div class="sm-titulo"><h1>Status de Montagens · teste técnico</h1><span class="sm-versao">' + VERSAO + '</span></div>' +
+      '<div class="sm-info" id="sm-info">Conectando à 3DEXPERIENCE...</div>' +
+      '<div id="sm-aviso"></div>' +
+      '<div class="sm-busca">' +
+        '<label for="sm-nome">Nome da montagem<input id="sm-nome" type="text" placeholder="Ex.: ABC-100" /></label>' +
+        '<button type="button" class="sm-btn" id="sm-buscar" disabled>Buscar</button>' +
+      '</div>' +
+      '<div class="sm-caixa"><h2>Etapas</h2><ul class="sm-log" id="sm-log"></ul></div>' +
+      '<div id="sm-resultado"></div>' +
+      '<div class="sm-caixa sm-diag"><details><summary>Diagnóstico (copie e cole no chat se algo der errado)</summary>' +
+        '<p style="margin:8px 0;font-size:12px;color:#4F5864">Clique dentro da caixa, use Ctrl+A e depois Ctrl+C.</p>' +
+        '<textarea id="sm-diag" readonly></textarea>' +
+      '</details></div>' +
+    '</div>';
+
+  function $(id) { return document.getElementById(id); }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+
+  function anotar(etapa, situacao, detalhe) {
+    var existente = null;
+    for (var i = 0; i < registro.length; i++) { if (registro[i].etapa === etapa) existente = registro[i]; }
+    if (existente) { existente.situacao = situacao; existente.detalhe = detalhe || ''; }
+    else registro.push({ etapa: etapa, situacao: situacao, detalhe: detalhe || '' });
+    var html = '';
+    registro.forEach(function (r) {
+      var cls = r.situacao === 'OK' ? 'sm-ok' : (r.situacao === 'ERRO' ? 'sm-erro' : 'sm-and');
+      html += '<li><span class="sm-tag ' + cls + '">' + r.situacao + '</span><span><strong>' + esc(r.etapa) + '</strong>' +
+        (r.detalhe ? ' <span class="sm-detalhe">· ' + esc(r.detalhe) + '</span>' : '') + '</span></li>';
+    });
+    if ($('sm-log')) $('sm-log').innerHTML = html;
+    atualizarDiagnostico();
+  }
+
+  function atualizarDiagnostico() {
+    if (!$('sm-diag')) return;
+    var d = {
+      versao: VERSAO,
+      navegador: navigator.userAgent,
+      plataforma: estado.platformId,
+      space: estado.spaceUrl,
+      contexto: estado.ctx,
+      etapas: registro,
+      amostra: amostra
+    };
+    $('sm-diag').value = JSON.stringify(d, null, 2);
+  }
+
+  function mostrarAviso(html) { if ($('sm-aviso')) $('sm-aviso').innerHTML = html ? '<div class="sm-aviso">' + html + '</div>' : ''; }
+
+  function textoErro(e) {
+    if (!e) return 'erro desconhecido';
+    if (e.message) return e.message;
+    try { return JSON.stringify(e).slice(0, 500); } catch (x) { return String(e); }
+  }
+
+  function requisicao(metodo, url, corpo) {
+    return new Promise(function (resolve, reject) {
+      var headers = { 'Accept': 'application/json' };
+      if (estado.ctx) headers['SecurityContext'] = estado.ctx;
+      if (corpo) headers['Content-Type'] = 'application/json';
+      if (metodo !== 'GET' && estado.csrf) headers[estado.csrf.name] = estado.csrf.value;
+      WAF.authenticatedRequest(url, {
+        method: metodo,
+        headers: headers,
+        data: corpo ? JSON.stringify(corpo) : undefined,
+        type: 'json',
+        timeout: 120000,
+        onComplete: function (r) {
+          if (typeof r === 'string') { try { r = JSON.parse(r); } catch (x) { } }
+          resolve(r);
+        },
+        onFailure: function (err, resp) {
+          var extra = '';
+          if (resp) { try { extra = ' | resposta: ' + (typeof resp === 'string' ? resp : JSON.stringify(resp)).slice(0, 500); } catch (x) { } }
+          reject(new Error(textoErro(err) + extra));
+        },
+        onTimeout: function () { reject(new Error('tempo esgotado')); }
+      });
+    });
+  }
+
+  function obterSpace() {
+    return new Promise(function (resolve, reject) {
+      var pid = null;
+      try { pid = widget.getValue('x3dPlatformId'); } catch (x) { }
+      Compass.getPlatformServices({
+        onComplete: function (dados) {
+          var lista = Array.isArray(dados) ? dados : [dados];
+          amostra.plataformas = lista.map(function (p) { return p ? { platformId: p.platformId, nome: p.displayName } : null; });
+          var escolhida = null;
+          lista.forEach(function (p) { if (p && pid && p.platformId === pid) escolhida = p; });
+          if (!escolhida) escolhida = lista[0];
+          if (!escolhida || !escolhida['3DSpace']) {
+            reject(new Error('3DSpace não encontrado nos serviços da plataforma'));
+            return;
+          }
+          resolve(escolhida);
+        },
+        onFailure: function (e) { reject(new Error('falha ao listar serviços: ' + textoErro(e))); }
+      });
+    });
+  }
+
+  function conectar() {
+    anotar('1. Serviços da plataforma', '...');
+    obterSpace().then(function (p) {
+      estado.spaceUrl = p['3DSpace'];
+      estado.platformId = p.platformId;
+      anotar('1. Serviços da plataforma', 'OK', (p.displayName || p.platformId || '') + ' · ' + estado.spaceUrl);
+      anotar('2. Usuário e contexto de segurança', '...');
+      return requisicao('GET', estado.spaceUrl + '/resources/modeler/pno/person?current=true&select=preferredcredentials&select=collabspaces');
+    }).then(function (pessoa) {
+      amostra.pessoa = { name: pessoa && pessoa.name, preferredcredentials: pessoa && pessoa.preferredcredentials };
+      var pc = pessoa && pessoa.preferredcredentials;
+      if (pc && pc.role && pc.organization && pc.collabspace) {
+        estado.ctx = 'ctx::' + pc.role.name + '.' + pc.organization.name + '.' + pc.collabspace.name;
+      } else if (pessoa && pessoa.collabspaces && pessoa.collabspaces.length && pessoa.collabspaces[0].couples && pessoa.collabspaces[0].couples.length) {
+        var cs = pessoa.collabspaces[0], c = cs.couples[0];
+        estado.ctx = 'ctx::' + c.role.name + '.' + c.organization.name + '.' + cs.name;
+      } else {
+        throw new Error('não encontrei credenciais do usuário na resposta');
+      }
+      estado.usuario = pessoa.name || '';
+      anotar('2. Usuário e contexto de segurança', 'OK', estado.usuario + ' · ' + estado.ctx);
+      anotar('3. Token de segurança (CSRF)', '...');
+      return requisicao('GET', estado.spaceUrl + '/resources/v1/application/CSRF');
+    }).then(function (r) {
+      if (!r || !r.csrf || !r.csrf.name) throw new Error('resposta sem token');
+      estado.csrf = r.csrf;
+      conectado = true;
+      anotar('3. Token de segurança (CSRF)', 'OK');
+      $('sm-info').textContent = 'Conectado como ' + estado.usuario + ' · ' + estado.ctx.replace('ctx::', '');
+      $('sm-buscar').disabled = false;
+      $('sm-nome').focus();
+    }).catch(function (e) {
+      var pendente = registro.filter(function (r) { return r.situacao === '...'; })[0];
+      anotar(pendente ? pendente.etapa : 'Conexão', 'ERRO', textoErro(e));
+      $('sm-info').textContent = 'Não foi possível conectar. Veja as etapas abaixo.';
+    });
+  }
+
+  function diasDesde(data) {
+    var t = Date.parse(data);
+    if (isNaN(t)) return '';
+    return Math.floor((Date.now() - t) / 86400000);
+  }
+
+  function buscar() {
+    var termo = ($('sm-nome').value || '').trim();
+    if (!termo || !conectado) return;
+    $('sm-buscar').disabled = true;
+    $('sm-resultado').innerHTML = '';
+    registro = registro.filter(function (r) { return /^[123]\./.test(r.etapa); });
+    anotar('4. Busca da montagem', '...');
+    var url = estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/search?$searchStr=' + encodeURIComponent(termo) + '&$top=20';
+    var raiz = null;
+    requisicao('GET', url).then(function (r) {
+      var membros = (r && r.member) || [];
+      amostra.busca = { totalItems: r && r.totalItems, primeiros: membros.slice(0, 3) };
+      if (!membros.length) throw new Error('nenhum item encontrado com "' + termo + '"');
+      membros.forEach(function (m) { if (!raiz && (m.name === termo || m.title === termo)) raiz = m; });
+      if (!raiz) raiz = membros[0];
+      anotar('4. Busca da montagem', 'OK', membros.length + ' encontrado(s); usando ' + (raiz.name || '') + ' "' + (raiz.title || '') + '" rev. ' + (raiz.revision || '?'));
+      anotar('5. Expansão da estrutura', '...');
+      return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raiz.id) + '/expand', { expandDepth: -1, withPath: true });
+    }).then(function (r) {
+      var membros = (r && r.member) || [];
+      amostra.expansao = { total: membros.length, primeiros: membros.slice(0, 6) };
+      var refs = {}, caminhos = [], nInst = 0;
+      membros.forEach(function (m) {
+        var p = m.Path || m.path;
+        if (Array.isArray(p)) { caminhos.push(p); return; }
+        if (/instance/i.test(m.type || '')) { nInst++; return; }
+        if (m.id) refs[m.id] = m;
+      });
+      var linhas = [];
+      if (caminhos.length) {
+        caminhos.forEach(function (p) {
+          var ultimo = p[p.length - 1];
+          if (ultimo === raiz.id || !refs[ultimo]) return;
+          linhas.push({ nivel: (p.length - 1) / 2, item: refs[ultimo] });
+        });
+      } else {
+        Object.keys(refs).forEach(function (id) { if (id !== raiz.id) linhas.push({ nivel: '-', item: refs[id] }); });
+      }
+      var unicos = Object.keys(refs).filter(function (id) { return id !== raiz.id; });
+      anotar('5. Expansão da estrutura', 'OK', unicos.length + ' itens únicos, ' + linhas.length + ' ocorrências, ' + caminhos.length + ' caminhos, ' + nInst + ' instâncias');
+      desenhar(raiz, unicos.map(function (id) { return refs[id]; }), linhas);
+    }).catch(function (e) {
+      var pendente = registro.filter(function (r) { return r.situacao === '...'; })[0];
+      anotar(pendente ? pendente.etapa : 'Busca', 'ERRO', textoErro(e));
+    }).then(function () { $('sm-buscar').disabled = false; });
+  }
+
+  function desenhar(raiz, unicos, linhas) {
+    var porEstado = {};
+    unicos.forEach(function (m) { var s = m.state || '(sem estado)'; porEstado[s] = (porEstado[s] || 0) + 1; });
+    var total = unicos.length || 1;
+    var cards = '<div class="sm-card"><span>Itens únicos</span><strong>' + unicos.length + '</strong></div>';
+    Object.keys(porEstado).sort().forEach(function (s) {
+      cards += '<div class="sm-card"><span>' + esc(ROTULOS[s] || s) + '</span><strong>' + porEstado[s] +
+        ' <small style="font-size:13px;color:#4F5864;font-weight:500">' + Math.round(porEstado[s] * 100 / total) + '%</small></strong></div>';
+    });
+    var corpo = '';
+    linhas.slice(0, 500).forEach(function (l) {
+      var m = l.item, s = m.state || '';
+      corpo += '<tr><td>' + esc(l.nivel) + '</td><td>' + esc(m.name) + '</td><td>' + esc(m.title) + '</td><td>' + esc(m.revision) +
+        '</td><td><span class="sm-est sm-est-' + esc(s) + '">' + esc(ROTULOS[s] || s) + '</span></td><td>' + esc(m.owner) +
+        '</td><td>' + esc((m.modified || '').slice(0, 10)) + '</td><td style="text-align:right">' + esc(diasDesde(m.modified)) + '</td></tr>';
+    });
+    $('sm-resultado').innerHTML =
+      '<div class="sm-caixa"><h2>' + esc(raiz.name) + ' · ' + esc(raiz.title) + ' · rev. ' + esc(raiz.revision) +
+        ' · <span class="sm-est sm-est-' + esc(raiz.state) + '">' + esc(ROTULOS[raiz.state] || raiz.state) + '</span></h2>' +
+        '<div class="sm-cards">' + cards + '</div>' +
+        '<div class="sm-tabela"><table><thead><tr><th>Nível</th><th>Nome</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Owner</th><th>Modificado</th><th style="text-align:right">Dias</th></tr></thead><tbody>' +
+        corpo + '</tbody></table></div>' +
+        (linhas.length > 500 ? '<p class="sm-detalhe">Mostrando 500 de ' + linhas.length + ' linhas.</p>' : '') +
+      '</div>';
+  }
+
+  function modoForaDoDashboard() {
+    if (conectado) return;
+    $('sm-info').textContent = '';
+    mostrarAviso('<strong>A hospedagem está funcionando.</strong> Este widget só lê dados quando aberto dentro do 3DDashboard, pelo app Run Your App. Copie o endereço desta página e cole lá.');
+  }
+
+  function iniciar() {
+    var raizDom = (typeof widget !== 'undefined' && widget.body) ? widget.body : document.body;
+    raizDom.innerHTML = TEMPLATE;
+    registro = [];
+    $('sm-buscar').addEventListener('click', buscar);
+    $('sm-nome').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
+    atualizarDiagnostico();
+    if (typeof require !== 'function') { modoForaDoDashboard(); return; }
+    var esperando = setTimeout(function () { if (!WAF) modoForaDoDashboard(); }, 15000);
+    require(['DS/WAFData/WAFData', 'DS/i3DXCompassServices/i3DXCompassServices'], function (W, C) {
+      clearTimeout(esperando);
+      WAF = W; Compass = C;
+      conectar();
+    }, function () { clearTimeout(esperando); modoForaDoDashboard(); });
+  }
+
+  if (typeof widget !== 'undefined' && widget.addEvent) {
+    widget.addEvent('onLoad', iniciar);
+  } else {
+    document.addEventListener('DOMContentLoaded', iniciar);
+  }
+})();
+</script>
+</head>
+<body>
+<p style="font-family: Arial, sans-serif; padding: 16px">Carregando...</p>
+</body>
+</html>
