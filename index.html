@@ -144,6 +144,20 @@
   .t-pai { background: rgba(208,59,59,0.2); color: #F08A8A; }
   .t-parado { background: rgba(250,178,25,0.16); color: #F5C75A; }
   .t-2d { background: rgba(186,213,50,0.16); color: var(--destaque); }
+  .t-res { background: rgba(144,133,233,0.2); color: #C9C2F7; display: inline-flex; align-items: center; gap: 4px; }
+  .t-rev { background: rgba(57,135,229,0.2); color: #8DBBF2; }
+  .sm-cab-meta .sm-tag { font-size: 12px; }
+  .sm-sub { margin: 22px 0 10px; font-size: 12px; font-weight: 700; color: var(--destaque); text-transform: uppercase; letter-spacing: 1.2px; }
+  button.sm-kpi { font: inherit; text-align: left; cursor: pointer; color: inherit; }
+  button.sm-kpi:hover { border-color: #5A5F65; background: var(--card2); }
+  button.sm-kpi.ativo { border-color: var(--destaque); box-shadow: 0 0 0 1px var(--destaque) inset; }
+  .sm-fatia { cursor: pointer; transition: stroke-width 0.15s; }
+  .sm-fatia:hover { stroke-width: 22; }
+  .sm-leg li { display: block; }
+  .sm-leg-btn { width: 100%; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font: inherit; font-size: 13px; color: var(--texto); background: none; border: 0; border-radius: 6px; padding: 4px 6px; margin: -4px -6px; cursor: pointer; text-align: left; }
+  .sm-leg-btn:hover { background: var(--card2); }
+  .sm-leg-btn[disabled] { cursor: default; opacity: 0.6; }
+  .sm-leg-btn[disabled]:hover { background: none; }
   .sm-barra-est { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: #3A3D40; }
   .c-RELEASED { background: var(--c-lib); } .c-FROZEN { background: var(--c-cong); } .c-IN_WORK { background: var(--c-trab); } .c-PRIVATE { background: var(--c-priv); } .c-OBSOLETE { background: var(--c-obs); } .c-OUTRO { background: #6B7076; }
 
@@ -206,7 +220,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v1.1 (30/10/2026)';
+  var VERSAO = 'v1.2 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -226,6 +240,10 @@
   var desenhos = {};      // id do item (VPMReference) -> { state, name } do melhor desenho ligado a ele
   var desenhosEstado = ''; // '', 'carregando', 'ok', 'erro'
   var desenhosLista = {};  // id do item -> lista de todos os desenhos ligados a ele (para a árvore)
+  var reservas = {};       // id do item -> { por } quando está reservado
+  var revNovas = {};       // id do item da estrutura -> { id, revision, state, owner, modified } da revisão mais nova
+  var extrasEstado = '';   // reservas e revisões: '', 'carregando', 'ok', 'erro'
+  var filtro = null;       // { chave, rotulo } do filtro aplicado pelos gráficos e indicadores
   var cfg = { limite: 15, metaPct: 90, metaData: '' };
 
   var ROTULOS = { IN_WORK: 'Em trabalho', FROZEN: 'Congelado', RELEASED: 'Liberado', PRIVATE: 'Privado', OBSOLETE: 'Obsoleto' };
@@ -276,6 +294,9 @@
               '<dt>Desenho do item</dt><dd>Desenho (Drawing) que a própria 3DX liga àquele item ou configuração. Havendo mais de um, vale o mais maduro.</dd>' +
               '<dt>Liberado sem desenho</dt><dd>Item liberado cujo desenho falta ou ainda não está liberado.</dd>' +
               '<dt>Responsáveis</dt><dd>Itens únicos que ainda não estão liberados nem obsoletos, agrupados pelo owner.</dd>' +
+              '<dt>Reservado</dt><dd>Item reservado (travado para edição) por alguém. Reservado e parado: reservado e sem modificação há pelo menos o número de dias configurado.</dd>' +
+              '<dt>Em revisão</dt><dd>A estrutura usa uma revisão, mas já existe uma revisão mais nova do mesmo item na 3DX (ex.: estrutura na rev. A liberada, rev. B em trabalho).</dd>' +
+              '<dt>Filtros</dt><dd>Clique numa fatia dos gráficos ou num indicador para ver só aqueles itens.</dd>' +
               '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
             '</dl>' +
           '</details>' +
@@ -532,7 +553,7 @@
       var membros = (r && r.member) || [];
       bruto = { raiz: raiz, membros: membros, lido: agora() };
       aberto = {};
-      thumbs = {}; thumbsEstado = '';
+      thumbs = {}; thumbsEstado = ''; reservas = {}; revNovas = {}; extrasEstado = ''; filtro = null;
       desenhos = {}; desenhosEstado = ''; desenhosLista = {};
       processar();
       anotar('Expansão', 'OK', dados.unicos.length + ' itens únicos, ' + dados.nos.length + ' ocorrências');
@@ -560,15 +581,20 @@
     var nomes = [];
     dados.unicos.forEach(function (u) { if (u.item.name && !(u.item.name in thumbs)) nomes.push(u.item.name); });
     if (dados.raiz.item.name && !(dados.raiz.item.name in thumbs)) nomes.push(dados.raiz.item.name);
-    if (!nomes.length) { thumbsEstado = 'ok'; desenharArvore(); return; }
-    thumbsEstado = 'carregando';
+    if (!nomes.length) { thumbsEstado = 'ok'; extrasEstado = 'ok'; desenharArvore(); return; }
+    thumbsEstado = 'carregando'; extrasEstado = 'carregando';
     anotar('Thumbnails', '...', nomes.length + ' itens');
+    var idsEstrutura = {};
+    dados.unicos.forEach(function (u) { idsEstrutura[u.item.id] = true; });
+    idsEstrutura[dados.raiz.item.id] = true;
+    var exato = {}, pendRev = {}, ultimas = {};
+    function attr(a, k) { for (var n in a) { if (n === k || n.split('/').pop() === k) return a[n]; } return undefined; }
     var lotes = [];
     for (var i = 0; i < nomes.length; i += 25) lotes.push(nomes.slice(i, i + 25));
     var falhas = 0;
     function processarLote(lote) {
       var corpo = {
-        label: 'sm-thumbs', locale: 'en', select_predicate: ['ds6w:identifier', 'preview_url'],
+        label: 'sm-thumbs', locale: 'en', select_predicate: ['ds6w:identifier', 'preview_url', 'physicalid', 'ds6w:reserved', 'ds6w:reservedBy', 'ds6w:isLastRevision', 'ds6w:status'],
         with_indexing_date: false, with_nls: false, with_synthesis: false,
         query: lote.join(' OR '), refine: {}, order_by: 'desc', order_field: 'relevance',
         nresults: 100, start: '0', source: ['3dspace'], tenant: tenant,
@@ -581,8 +607,18 @@
         (r && r.results || []).forEach(function (res) {
           var a = {};
           (res.attributes || []).forEach(function (x) { a[x.name] = x.value; });
-          var id = a['ds6w:identifier'];
-          if (id && lote.indexOf(id) >= 0 && a.preview_url) thumbs[id] = a.preview_url;
+          var id = a['ds6w:identifier'], pid = a.physicalid;
+          if (!id || lote.indexOf(id) < 0) return;
+          if (pid && idsEstrutura[pid]) {
+            // é exatamente a revisão que está na estrutura
+            if (a.preview_url) { thumbs[id] = a.preview_url; exato[id] = true; }
+            if (String(attr(a, 'ds6w:reserved')).toUpperCase() === 'TRUE') reservas[pid] = { por: attr(a, 'ds6w:reservedBy') || '' };
+            if (String(attr(a, 'ds6w:isLastRevision')) === 'false') pendRev[id] = pid;
+          } else {
+            // outra revisão do mesmo item
+            if (a.preview_url && !exato[id] && !thumbs[id]) thumbs[id] = a.preview_url;
+            if (String(attr(a, 'ds6w:isLastRevision')) === 'true' && pid) ultimas[id] = { pid: pid, reservado: String(attr(a, 'ds6w:reserved')).toUpperCase() === 'TRUE', por: attr(a, 'ds6w:reservedBy') || '' };
+          }
         });
         lote.forEach(function (n) { if (!(n in thumbs)) thumbs[n] = ''; });
       }).catch(function (e) { falhas++; amostra.erroThumbs = textoErro(e); });
@@ -594,6 +630,19 @@
       thumbsEstado = falhas === lotes.length ? 'erro' : 'ok';
       anotar('Thumbnails', falhas ? (falhas === lotes.length ? 'ERRO' : 'OK') : 'OK', falhas ? falhas + ' de ' + lotes.length + ' lote(s) falharam' : '');
       desenhar();
+      // revisões mais novas: busca revisão, estado e owner de cada uma
+      var pend = Object.keys(pendRev).filter(function (n) { return ultimas[n]; });
+      return Promise.all(pend.map(function (n) {
+        var u = ultimas[n];
+        return requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(u.pid)).then(function (r) {
+          var m = r && r.member && r.member[0];
+          if (m) revNovas[pendRev[n]] = { id: u.pid, revision: m.revision, state: m.state, owner: m.owner, modified: m.modified, reservado: u.reservado, por: u.por };
+        }).catch(function (e) { amostra.erroRevisao = textoErro(e); });
+      })).then(function () {
+        extrasEstado = falhas === lotes.length ? 'erro' : 'ok';
+        anotar('Reservas e revisões', extrasEstado === 'ok' ? 'OK' : 'ERRO', Object.keys(reservas).length + ' reservado(s) · ' + Object.keys(revNovas).length + ' com revisão nova');
+        desenhar();
+      });
     });
   }
 
@@ -710,8 +759,23 @@
         }
       });
     }
-    function peso(e) { return (e.u.paiLiberado ? 2 : 0) + (e.semDes ? 2 : 0) + (e.u.parado ? 1 : 0); }
+    function peso(e) { return (e.u.paiLiberado ? 2 : 0) + (e.semDes ? 2 : 0) + (e.u.parado ? 1 : 0) + (e.u.parado && reservas[e.u.item.id] ? 1 : 0); }
     return lista.sort(function (a, b) { return peso(b) - peso(a) || (b.u.dias || 0) - (a.u.dias || 0); });
+  }
+
+  var ICONE_CADEADO = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>';
+  function tagReserva(it) {
+    var r = reservas[it.id];
+    return r ? '<span class="sm-tag t-res" title="Reservado por ' + esc(r.por) + '">' + ICONE_CADEADO + ' ' + esc(r.por || 'reservado') + '</span>' : '';
+  }
+  function tagRevNova(it) {
+    var r = revNovas[it.id];
+    return r ? '<span class="sm-tag t-rev" title="A estrutura usa a rev. ' + esc(it.revision) + '">rev. ' + esc(r.revision) + ' ' + esc(rotulo(r.state).toLowerCase()) + '</span>' : '';
+  }
+  function idxDoItem(id) {
+    if (dados.raiz.item.id === id) return 0;
+    for (var i = 0; i < dados.nos.length; i++) if (dados.nos[i].item.id === id) return dados.nos[i].idx;
+    return 0;
   }
 
   function celulaThumb(item, idx) {
@@ -753,6 +817,8 @@
             '<dt>Estado</dt><dd><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></dd>' +
             '<dt>Owner</dt><dd>' + esc(it.owner) + '</dd>' +
             '<dt>Modificado</dt><dd>' + esc(dataBR(it.modified)) + (n.dias === null || n.dias === undefined ? '' : ' · ' + n.dias + ' dia(s) sem alteração') + '</dd>' +
+            '<dt>Reserva</dt><dd>' + (reservas[it.id] ? tagReserva(it) : (extrasEstado === 'ok' ? '<span class="sm-vazio">não reservado</span>' : '<span class="sm-vazio">...</span>')) + '</dd>' +
+            (revNovas[it.id] ? '<dt>Revisão nova</dt><dd>' + tagRevNova(it) + ' · owner ' + esc(revNovas[it.id].owner) + ' · ' + esc(dataBR(revNovas[it.id].modified)) + (desenhos[revNovas[it.id].id] ? ' · desenho rev. ' + esc(rotulo(desenhos[revNovas[it.id].id].state).toLowerCase()) : '') + '</dd>' : '') +
             '<dt>Desenho</dt><dd>' + tagDesenho(it) + (desenhos[it.id] ? ' <span class="sm-mono">' + esc(desenhos[it.id].name) + '</span>' : '') + '</dd>' +
             '<dt>Nível</dt><dd>' + n.nivel + (n.filhos.length ? ' · ' + n.filhos.length + ' filho(s)' : '') + '</dd>' +
             (alertas.length ? '<dt>Alertas</dt><dd>' + alertas.join(' ') + '</dd>' : '') +
@@ -962,7 +1028,7 @@
     segs.forEach(function (s) {
       if (!s.valor) return;
       var len = s.valor / total * c, tam = Math.max(len - gap, 0.8);
-      arcos += '<circle r="' + r + '" cx="70" cy="70" fill="none" stroke="' + s.cor + '" stroke-width="18" stroke-dasharray="' + tam.toFixed(2) + ' ' + (c - tam).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 70 70)">' +
+      arcos += '<circle class="sm-fatia sm-filtrar" data-filtro="' + esc(s.filtro || '') + '" r="' + r + '" cx="70" cy="70" fill="none" stroke="' + s.cor + '" stroke-width="18" stroke-dasharray="' + tam.toFixed(2) + ' ' + (c - tam).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 70 70)">' +
         '<title>' + esc(s.rotulo) + ': ' + s.valor + ' (' + pct(s.valor, total) + '%)</title></circle>';
       off += len;
     });
@@ -975,7 +1041,7 @@
   function legenda(segs) {
     var total = 0; segs.forEach(function (s) { total += s.valor; });
     return '<ul class="sm-leg">' + segs.map(function (s) {
-      return '<li><span class="q" style="background:' + s.cor + '"></span><span>' + esc(s.rotulo) + '</span><span class="n">' + s.valor + '</span><span class="p">' + pct(s.valor, total) + '%</span></li>';
+      return '<li><button type="button" class="sm-leg-btn sm-filtrar" data-filtro="' + esc(s.filtro || '') + '"' + (s.valor ? '' : ' disabled') + ' aria-label="Filtrar: ' + esc(s.rotulo) + '"><span class="q" style="background:' + s.cor + '"></span><span>' + esc(s.rotulo) + '</span><span class="n">' + s.valor + '</span><span class="p">' + pct(s.valor, total) + '%</span></button></li>';
     }).join('') + '</ul>';
   }
 
@@ -983,7 +1049,7 @@
     var total = d.unicos.length, lib = d.porEstado.RELEASED || 0;
     var ordem = ORDEM_EST.concat(Object.keys(d.porEstado).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; }));
     var segs = ordem.filter(function (s) { return d.porEstado[s] || s === 'RELEASED' || s === 'IN_WORK'; })
-      .map(function (s) { return { valor: d.porEstado[s] || 0, cor: CORES[s] || CORES.OUTRO, rotulo: rotulo(s) }; });
+      .map(function (s) { return { valor: d.porEstado[s] || 0, cor: CORES[s] || CORES.OUTRO, rotulo: rotulo(s), filtro: 'est:' + s }; });
     return '<div class="sm-cartao"><h3 class="sm-cartao-t">Maturidade dos itens</h3>' +
       '<p class="sm-cartao-s">' + total + ' itens únicos · ' + d.nos.length + ' ocorrências</p>' +
       '<div class="sm-graf">' + rosca(segs, pct(lib, total) + '%', 'liberado', pct(lib, total) + '% dos itens liberados') + legenda(segs) + '</div></div>';
@@ -995,9 +1061,9 @@
     if (desenhosEstado === 'erro') return cab + '<div class="sm-carregando">Não consegui ler os desenhos. Veja o diagnóstico técnico.</div></div>';
     var rd = resumoDesenhos();
     var segs = [
-      { valor: rd.lib, cor: CORES.RELEASED, rotulo: 'Liberado' },
-      { valor: rd.naoLib, cor: CORES.IN_WORK, rotulo: 'Não liberado' },
-      { valor: rd.sem, cor: CORES.FALTA, rotulo: 'Sem desenho' }
+      { valor: rd.lib, cor: CORES.RELEASED, rotulo: 'Liberado', filtro: 'des:RELEASED' },
+      { valor: rd.naoLib, cor: CORES.IN_WORK, rotulo: 'Não liberado', filtro: 'des:NAOLIB' },
+      { valor: rd.sem, cor: CORES.FALTA, rotulo: 'Sem desenho', filtro: 'des:FALTA' }
     ];
     return cab + '<div class="sm-graf">' + rosca(segs, pct(rd.lib, rd.total) + '%', 'liberados', pct(rd.lib, rd.total) + '% dos itens com desenho liberado') + legenda(segs) + '</div></div>';
   }
@@ -1029,9 +1095,56 @@
       '</div>';
   }
 
-  function kpi(rotuloK, valor, detalhe, classe, cor) {
-    return '<div class="sm-kpi' + (classe ? ' ' + classe : '') + '"><span class="r">' + (cor ? '<span class="sm-ponto" style="background:' + cor + '"></span>' : '') + esc(rotuloK) + '</span>' +
-      '<span class="v">' + valor + '</span><span class="d">' + detalhe + '</span></div>';
+  function kpi(rotuloK, valor, detalhe, classe, chave) {
+    var ativo = filtro && filtro.chave === chave;
+    return '<button type="button" class="sm-kpi sm-filtrar' + (classe ? ' ' + classe : '') + (ativo ? ' ativo' : '') + '" data-filtro="' + esc(chave) + '" aria-pressed="' + (ativo ? 'true' : 'false') + '" title="Clique para ver estes itens">' +
+      '<span class="r">' + esc(rotuloK) + '</span><span class="v">' + valor + '</span><span class="d">' + detalhe + '</span></button>';
+  }
+
+  var ROTULOS_FILTRO = { 'kpi:faltamLib': 'Faltam liberar', 'kpi:faltamDes': 'Faltam desenhos', 'kpi:semDesLib': 'Liberados sem desenho', 'kpi:parados': 'Parados', 'kpi:reservados': 'Reservados', 'kpi:revisao': 'Em revisão', 'des:RELEASED': 'Desenho liberado', 'des:NAOLIB': 'Desenho não liberado', 'des:FALTA': 'Sem desenho' };
+  function rotuloFiltro(ch) { return ROTULOS_FILTRO[ch] || (ch.indexOf('est:') === 0 ? 'Estado: ' + rotulo(ch.slice(4)) : ch); }
+
+  function itensDoFiltro(ch) {
+    var d = dados, r = d.raiz.item;
+    var base = d.unicos.map(function (u) { return { item: u.item, dias: u.dias, parado: u.parado }; });
+    var comRaiz = base.concat([{ item: r, dias: diasDesde(r.modified), parado: false }]);
+    function sd(e) { return statusDesenho(e.item); }
+    if (ch.indexOf('est:') === 0) { var st = ch.slice(4); return base.filter(function (e) { return e.item.state === st; }); }
+    if (ch === 'des:RELEASED') return comRaiz.filter(function (e) { return sd(e) === 'RELEASED'; });
+    if (ch === 'des:NAOLIB') return comRaiz.filter(function (e) { var x = sd(e); return x && x !== 'RELEASED' && x !== 'FALTA' && x !== 'ERRO'; });
+    if (ch === 'des:FALTA') return comRaiz.filter(function (e) { return sd(e) === 'FALTA'; });
+    if (ch === 'kpi:faltamLib') return base.filter(function (e) { return e.item.state !== 'RELEASED' && e.item.state !== 'OBSOLETE'; });
+    if (ch === 'kpi:faltamDes') return comRaiz.filter(function (e) { var x = sd(e); return x && x !== 'RELEASED' && x !== 'ERRO'; });
+    if (ch === 'kpi:semDesLib') return comRaiz.filter(function (e) { var x = sd(e); return e.item.state === 'RELEASED' && x && x !== 'RELEASED' && x !== 'ERRO'; });
+    if (ch === 'kpi:parados') return base.filter(function (e) { return e.parado; });
+    if (ch === 'kpi:reservados') return comRaiz.filter(function (e) { return reservas[e.item.id]; });
+    if (ch === 'kpi:revisao') return comRaiz.filter(function (e) { return revNovas[e.item.id]; });
+    return [];
+  }
+
+  function aplicarFiltro(ch) {
+    if (!ch || !dados) return;
+    if (filtro && filtro.chave === ch) { filtro = null; if (abaAtiva === 'filtro') abaAtiva = 'estrutura'; }
+    else { filtro = { chave: ch, rotulo: rotuloFiltro(ch) }; abaAtiva = 'filtro'; }
+    desenhar();
+    var caixa = document.getElementById('sm-abas-caixa');
+    if (caixa && filtro && caixa.scrollIntoView) { try { caixa.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { caixa.scrollIntoView(); } }
+  }
+
+  function painelFiltro() {
+    var lista = itensDoFiltro(filtro.chave);
+    var html = '<div class="sm-painel-topo"><p>' + lista.length + ' item(ns) em <strong>' + esc(filtro.rotulo) + '</strong>. Clique na thumbnail para ver os detalhes.</p>' +
+      '<button type="button" class="sm-btn2" id="sm-limpar-filtro">Limpar filtro</button></div>';
+    if (!lista.length) return html + '<p class="sm-vazio">Nenhum item neste filtro.</p>';
+    html += '<div class="sm-tabela"><table style="min-width:960px"><thead><tr><th>Thumbnail</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Owner</th><th>Reserva</th><th>Revisão nova</th><th class="num">Sem alteração</th></tr></thead><tbody>';
+    lista.slice(0, 500).forEach(function (e) {
+      var it = e.item;
+      html += '<tr><td class="sm-celthumb">' + celulaThumb(it, idxDoItem(it.id)) + '</td><td title="' + esc(it.name) + '"><strong>' + esc(it.title || it.name) + '</strong></td><td>' + esc(it.revision) + '</td>' +
+        '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
+        '<td>' + (tagReserva(it) || '<span class="sm-vazio">—</span>') + '</td><td>' + (tagRevNova(it) || '<span class="sm-vazio">—</span>') + '</td>' +
+        '<td class="num">' + (e.dias === null || e.dias === undefined ? '—' : e.dias + ' dias') + '</td></tr>';
+    });
+    return html + '</tbody></table></div>';
   }
 
   function desenhar() {
@@ -1042,7 +1155,11 @@
     var naoLib = d.unicos.filter(function (u) { return u.item.state !== 'RELEASED' && u.item.state !== 'OBSOLETE'; }).length;
     var desOk = desenhosEstado === 'ok', rd = resumoDesenhos();
     var semDesLib = acaoLista.filter(function (e) { return e.semDes; }).length;
-    if (!abaAtiva) abaAtiva = acaoLista.length ? 'acao' : 'estrutura';
+    if (!abaAtiva || (abaAtiva === 'filtro' && !filtro)) abaAtiva = acaoLista.length ? 'acao' : 'estrutura';
+    var exOk = extrasEstado === 'ok';
+    var nRes = 0, nResPar = 0, nRev = 0;
+    itensDoFiltro('kpi:reservados').forEach(function (e) { nRes++; if (e.parado) nResPar++; });
+    nRev = itensDoFiltro('kpi:revisao').length;
 
     var html = '';
     // cabeçalho da montagem
@@ -1052,18 +1169,19 @@
       '<div style="min-width:0;flex:1 1 300px"><h2>' + esc(r.title || r.name) + '</h2>' +
       '<div class="sm-cab-meta"><span class="sm-mono">' + esc(r.name) + '</span><span>Rev. ' + esc(r.revision) + '</span>' +
       '<span class="sm-est e-' + esc(r.state) + '">' + esc(rotulo(r.state)) + '</span><span>Owner ' + esc(r.owner) + '</span>' +
-      '<span>Desenho ' + tagDesenho(r) + '</span></div></div></div>';
+      '<span>Desenho ' + tagDesenho(r) + '</span>' + tagReserva(r) + tagRevNova(r) + '</div></div></div>';
 
     // resumo visual
     html += '<div class="sm-resumo">' + cartaoItens(d) + cartaoDesenhos() + cartaoMeta(d) + '</div>';
 
     // indicadores
     html += '<div class="sm-kpis">' +
-      kpi('Faltam liberar', naoLib, 'de ' + total + ' itens únicos', naoLib ? 'atencao' : '', '') +
-      kpi('Faltam desenhos', desOk ? rd.faltam : '...', desOk ? rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)' : 'consultando', desOk && rd.faltam ? 'atencao' : '', '') +
-      kpi('Liberados sem desenho', desOk ? semDesLib : '...', 'item liberado sem desenho liberado', desOk && semDesLib ? 'alerta' : '', '') +
-      kpi('Parados', d.parados, cfg.limite + ' dias ou mais sem alteração', d.parados ? 'atencao' : '', '') +
-      kpi('Pedem ação', acaoLista.length, d.paiLib + ' com pai liberado', acaoLista.length ? 'alerta' : '', '') +
+      kpi('Faltam liberar', naoLib, 'de ' + total + ' itens únicos', naoLib ? 'atencao' : '', 'kpi:faltamLib') +
+      kpi('Faltam desenhos', desOk ? rd.faltam : '...', desOk ? rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)' : 'consultando', desOk && rd.faltam ? 'atencao' : '', 'kpi:faltamDes') +
+      kpi('Liberados sem desenho', desOk ? semDesLib : '...', 'liberado sem desenho liberado', desOk && semDesLib ? 'alerta' : '', 'kpi:semDesLib') +
+      kpi('Parados', d.parados, cfg.limite + ' dias ou mais sem alteração', d.parados ? 'atencao' : '', 'kpi:parados') +
+      kpi('Reservados', exOk ? nRes : '...', exOk ? (nResPar ? nResPar + ' reservado(s) e parado(s)' : 'travados para edição') : 'consultando', exOk && nResPar ? 'atencao' : '', 'kpi:reservados') +
+      kpi('Em revisão', exOk ? nRev : '...', 'revisão nova em andamento', '', 'kpi:revisao') +
       '</div>';
 
     // abas
@@ -1073,12 +1191,13 @@
       { id: 'subs', nome: 'Submontagens', cont: d.subs.length },
       { id: 'owners', nome: 'Responsáveis', cont: d.owners.length }
     ];
-    html += '<div class="sm-abas-caixa"><div class="sm-abas" role="tablist" aria-label="Detalhes">' + abas.map(function (a) {
+    if (filtro) abas.push({ id: 'filtro', nome: 'Filtro: ' + filtro.rotulo, cont: itensDoFiltro(filtro.chave).length });
+    html += '<div class="sm-abas-caixa" id="sm-abas-caixa"><div class="sm-abas" role="tablist" aria-label="Detalhes">' + abas.map(function (a) {
       var sel = a.id === abaAtiva;
       return '<button type="button" class="sm-aba" role="tab" id="sm-aba-' + a.id + '" data-aba="' + a.id + '" aria-selected="' + sel + '" aria-controls="sm-painel">' +
         esc(a.nome) + '<span class="cont' + (a.alerta ? ' alerta' : '') + '">' + a.cont + '</span></button>';
     }).join('') + '</div><div class="sm-painel" id="sm-painel" role="tabpanel" aria-labelledby="sm-aba-' + abaAtiva + '">' +
-      (abaAtiva === 'acao' ? painelAcao(acaoLista) : abaAtiva === 'subs' ? painelSubs(d) : abaAtiva === 'owners' ? painelOwners(d) : painelEstrutura()) +
+      (abaAtiva === 'filtro' && filtro ? painelFiltro() : abaAtiva === 'acao' ? painelAcao(acaoLista) : abaAtiva === 'subs' ? painelSubs(d) : abaAtiva === 'owners' ? painelOwners(d) : painelEstrutura()) +
       '</div></div>';
 
     $('sm-conteudo').innerHTML = html;
@@ -1093,7 +1212,7 @@
       var u = e.u, it = u.item, motivos = [];
       if (u.paiLiberado) motivos.push('<span class="sm-tag t-pai">pai liberado: ' + esc(Object.keys(u.pais).join(', ')) + '</span>');
       if (e.semDes) motivos.push('<span class="sm-tag t-pai">liberado sem desenho liberado</span>');
-      if (u.parado) motivos.push('<span class="sm-tag t-parado">parado</span>');
+      if (u.parado) motivos.push('<span class="sm-tag t-parado">' + (reservas[it.id] ? 'parado e reservado' : 'parado') + '</span>');
       html += '<tr><td title="' + esc(it.name) + '">' + esc(it.title) + '</td><td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
         '<td>' + motivos.join(' ') + '</td><td class="num">' + (u.dias === null || u.dias === undefined ? '—' : u.dias + ' dias') + '</td></tr>';
@@ -1140,7 +1259,19 @@
         '<div class="sm-owner-b" role="img" aria-label="' + o.total + ' pendências"><div style="width:' + (o.total * 100 / maior) + '%"></div></div>' +
         '<span class="num"><strong>' + o.total + '</strong></span><span class="num so-larga">' + (o.parados ? '<span class="sm-tag t-parado">' + o.parados + '</span>' : '—') + '</span>';
     });
-    return html + '</div>';
+    html += '</div>';
+    var porPessoa = {};
+    itensDoFiltro('kpi:reservados').forEach(function (e) { var p = reservas[e.item.id].por || '(sem nome)'; (porPessoa[p] = porPessoa[p] || []).push(e); });
+    var pessoas = Object.keys(porPessoa).sort(function (a, b) { return porPessoa[b].length - porPessoa[a].length; });
+    if (pessoas.length) {
+      html += '<h4 class="sm-sub">Reservas por pessoa</h4><div class="sm-tabela"><table style="min-width:520px"><thead><tr><th>Pessoa</th><th class="num">Reservados</th><th class="num">Parados</th><th>Itens</th></tr></thead><tbody>';
+      pessoas.forEach(function (p) {
+        var l = porPessoa[p], par = l.filter(function (e) { return e.parado; }).length;
+        html += '<tr><td><strong>' + esc(p) + '</strong></td><td class="num">' + l.length + '</td><td class="num">' + (par ? '<span class="sm-tag t-parado">' + par + '</span>' : '—') + '</td><td>' + l.map(function (e) { return esc(e.item.title || e.item.name); }).join(', ') + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    return html;
   }
 
   function desenhosDe(no) { return desenhosEstado === 'ok' ? (desenhosLista[no.item.id] || []) : []; }
@@ -1196,7 +1327,8 @@
       var alertas = '';
       if (n.temFilhoPendente) alertas += '<span class="sm-tag t-pai">filho pendente</span> ';
       if (n.paiLiberado) alertas += '<span class="sm-tag t-pai">pai liberado</span> ';
-      if (n.parado) alertas += '<span class="sm-tag t-parado">parado</span>';
+      if (n.parado) alertas += '<span class="sm-tag t-parado">parado</span> ';
+      alertas += tagRevNova(it) + ' ' + tagReserva(it);
       html += '<tr' + (n.paiLiberado || n.temFilhoPendente ? ' class="marcada"' : '') + '>' +
         '<td class="num">' + n.nivel + '</td>' +
         '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(it.name) + '">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
@@ -1228,9 +1360,11 @@
     var sep = ';';
     function cel(v) { v = String(v == null ? '' : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
     function des(it) { var s = statusDesenho(it); return s === null ? '' : s === 'FALTA' ? 'Falta' : s === 'ERRO' ? '' : rotulo(s); }
-    var linhas = [['Nível', 'Item', 'Título', 'Revisão', 'Estado', 'Desenho', 'Owner', 'Modificado', 'Dias sem alteração', 'Alertas'].join(sep)];
+    function res(it) { return reservas[it.id] ? (reservas[it.id].por || 'sim') : ''; }
+    function rnv(it) { return revNovas[it.id] ? 'rev. ' + revNovas[it.id].revision + ' ' + rotulo(revNovas[it.id].state) : ''; }
+    var linhas = [['Nível', 'Item', 'Título', 'Revisão', 'Estado', 'Desenho', 'Reservado por', 'Revisão nova', 'Owner', 'Modificado', 'Dias sem alteração', 'Alertas'].join(sep)];
     var r = dados.raiz.item;
-    linhas.push(['0', r.name, r.title, r.revision, rotulo(r.state), des(r), r.owner, dataBR(r.modified), '', ''].map(cel).join(sep));
+    linhas.push(['0', r.name, r.title, r.revision, rotulo(r.state), des(r), res(r), rnv(r), r.owner, dataBR(r.modified), '', ''].map(cel).join(sep));
     (function percorrer(no) {
       no.filhos.forEach(function (n) {
         var it = n.item, a = [];
@@ -1238,7 +1372,7 @@
         if (n.paiLiberado) a.push('pai liberado');
         if (n.parado) a.push('parado');
         if (it.state === 'RELEASED' && statusDesenho(it) && statusDesenho(it) !== 'RELEASED' && statusDesenho(it) !== 'ERRO') a.push('liberado sem desenho liberado');
-        linhas.push([n.nivel, it.name, it.title, it.revision, rotulo(it.state), des(it), it.owner, dataBR(it.modified), n.dias === null ? '' : n.dias, a.join(', ')].map(cel).join(sep));
+        linhas.push([n.nivel, it.name, it.title, it.revision, rotulo(it.state), des(it), res(it), rnv(it), it.owner, dataBR(it.modified), n.dias === null ? '' : n.dias, a.join(', ')].map(cel).join(sep));
         percorrer(n);
       });
     })(dados.raiz);
@@ -1301,7 +1435,7 @@
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
-      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-escolha') || alvo.classList.contains('sm-aba') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
+      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-escolha') || alvo.classList.contains('sm-aba') || alvo.classList.contains('sm-filtrar') || alvo.id === 'sm-limpar-filtro' || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
       if (!alvo || alvo === this) return;
       if (alvo.classList.contains('sm-thumb-btn')) { abrirModal(Number(alvo.getAttribute('data-idx'))); return; }
       if (alvo.classList.contains('sm-link2d')) {
@@ -1310,6 +1444,8 @@
         if (achado) { var m = abrirPorLink({ id: achado.id, type: 'Drawing', title: achado.title, name: achado.name }, 'o desenho'); if (/bloqueou/.test(m)) mostrarAviso(m.replace(/^<div class="sm-aviso">|<\/div>$/g, '')); }
         return;
       }
+      if (alvo.id === 'sm-limpar-filtro') { filtro = null; abaAtiva = 'estrutura'; desenhar(); return; }
+      if (alvo.classList.contains('sm-filtrar')) { aplicarFiltro(alvo.getAttribute('data-filtro')); return; }
       if (alvo.classList.contains('sm-aba')) { abaAtiva = alvo.getAttribute('data-aba'); gravarLocal('sm-aba', abaAtiva); desenhar(); return; }
       if (alvo.classList.contains('sm-escolha')) { ler(encontrados[Number(alvo.getAttribute('data-i'))]); return; }
       if (alvo.id === 'sm-exp-tudo') { expandirTudo(); return; }
