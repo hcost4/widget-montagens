@@ -261,7 +261,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v1.5 (30/10/2026)';
+  var VERSAO = 'v1.6 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -1809,19 +1809,23 @@
 
   // avisa quando há versão nova publicada (confere a cada 5 minutos)
   function verificarVersao() {
-    if (!window.fetch || !/^https?:/.test(location.protocol)) return;
-    fetch('app.html?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
+    if (!window.fetch) return;
+    fetch('https://hcost4.github.io/widget-montagens/app.html?t=' + Date.now(), { cache: 'no-store' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (t) {
       var m = /var VERSAO = '([^']+)'/.exec(t || '');
       if (m && m[1] !== VERSAO && $('sm-nova-versao')) {
         $('sm-nova-versao').innerHTML = 'Nova versão disponível (' + esc(m[1]) + '). <button type="button" class="sm-btn2" id="sm-recarregar">Atualizar agora</button>';
         $('sm-nova-versao').removeAttribute('hidden');
-        $('sm-recarregar').addEventListener('click', function () { location.reload(); });
+        $('sm-recarregar').addEventListener('click', function () { try { (window.top || window).location.reload(); } catch (x) { location.reload(); } });
       }
     }).catch(function () { });
   }
   setInterval(verificarVersao, 5 * 60 * 1000);
 
-  if (typeof widget !== 'undefined' && widget.addEvent) widget.addEvent('onLoad', iniciar);
+  if (window.__smCarregador) {
+    // aberto pelo carregador (index.html): a página já terminou de carregar
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else iniciar();
+  }
+  else if (typeof widget !== 'undefined' && widget.addEvent) widget.addEvent('onLoad', iniciar);
   else document.addEventListener('DOMContentLoaded', iniciar);
 
   // usado só para testes fora do dashboard
