@@ -65,6 +65,17 @@
   .sm-thumb img { max-width: 100%; max-height: 100%; display: block; }
   .sm-thumb.vazio { color: #8A929C; font-size: 10px; }
   .sm-tabela td.sm-celthumb { padding: 4px 6px; width: 76px; }
+  .sm-thumb-btn { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 4px; }
+  .sm-thumb-btn:hover .sm-thumb, .sm-thumb-btn:focus-visible .sm-thumb { border-color: #1D3B5A; box-shadow: 0 0 0 2px rgba(29,59,90,0.25); }
+  .sm-modal-fundo { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(20,24,30,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+  .sm-modal { background: #fff; border-radius: 8px; width: 100%; max-width: 680px; max-height: 100%; overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
+  .sm-modal-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .sm-modal-topo h2 { margin: 0; font-size: 17px; font-weight: 600; word-break: break-word; }
+  .sm-fechar { width: 36px; height: 36px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; color: #1B1F24; }
+  .sm-modal-img { background: #F6F7F9; border: 1px solid #E3E6EA; border-radius: 6px; display: flex; align-items: center; justify-content: center; min-height: 240px; padding: 12px; }
+  .sm-modal-img img { width: 432px; max-width: 100%; height: auto; }
+  .sm-modal-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .sm-modal-msg { font-size: 13px; }
   .sm-nome { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
   .sm-filhos { font-size: 11px; color: #4F5864; }
   .sm-owner-g { display: grid; grid-template-columns: minmax(80px, 180px) minmax(0, 1fr) 40px; gap: 8px 12px; align-items: center; font-size: 13px; }
@@ -90,7 +101,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'mvp-3 (30/10/2026)';
+  var VERSAO = 'mvp-4 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -153,7 +164,12 @@
           '<textarea id="sm-diag" readonly aria-label="Texto de diagnóstico"></textarea>' +
         '</details>' +
       '</div>' +
-    '</div></div>';
+    '</div><div id="sm-modal"></div></div>';
+
+  // App da 3DX usado para ver o item em 3D (3DPlay).
+  var APP_3D = 'X3DPLAY_AP';
+  var ICONE_X = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>';
+  var noModal = null;
 
   // ---------- utilidades ----------
   function $(id) { return document.getElementById(id); }
@@ -457,11 +473,74 @@
     });
   }
 
-  function celulaThumb(item) {
-    var url = thumbs[item.name];
-    if (url) return '<div class="sm-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" /></div>';
-    var txt = thumbsEstado === 'carregando' && !(item.name in thumbs) ? '...' : (thumbsEstado === 'erro' ? 'erro' : 'sem imagem');
-    return '<div class="sm-thumb vazio">' + txt + '</div>';
+  function celulaThumb(item, idx) {
+    var url = thumbs[item.name], miolo;
+    if (url) miolo = '<div class="sm-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" /></div>';
+    else {
+      var txt = thumbsEstado === 'carregando' && !(item.name in thumbs) ? '...' : (thumbsEstado === 'erro' ? 'erro' : 'sem imagem');
+      miolo = '<div class="sm-thumb vazio">' + txt + '</div>';
+    }
+    return '<button type="button" class="sm-thumb-btn" data-idx="' + idx + '" aria-label="Ver detalhes de ' + esc(item.title || item.name) + '">' + miolo + '</button>';
+  }
+
+  // ---------- janela de detalhes do item ----------
+  function noPorIdx(idx) {
+    if (!dados) return null;
+    if (idx === 0) return dados.raiz;
+    for (var i = 0; i < dados.nos.length; i++) if (dados.nos[i].idx === idx) return dados.nos[i];
+    return null;
+  }
+
+  function abrirModal(idx) {
+    var n = noPorIdx(idx);
+    if (!n) return;
+    noModal = n;
+    var it = n.item, url = thumbs[it.name];
+    var alertas = [];
+    if (n.temFilhoPendente) alertas.push('<span class="sm-tag t-pai">filho pendente</span>');
+    if (n.paiLiberado) alertas.push('<span class="sm-tag t-pai">pai liberado</span>');
+    if (n.parado) alertas.push('<span class="sm-tag t-parado">parado</span>');
+    $('sm-modal').innerHTML =
+      '<div class="sm-modal-fundo" id="sm-modal-fundo">' +
+        '<div class="sm-modal" role="dialog" aria-modal="true" aria-labelledby="sm-modal-titulo">' +
+          '<div class="sm-modal-topo"><h2 id="sm-modal-titulo">' + esc(it.title || it.name) + '</h2>' +
+            '<button type="button" class="sm-fechar" id="sm-modal-fechar" aria-label="Fechar">' + ICONE_X + '</button></div>' +
+          '<div class="sm-modal-img">' + (url ? '<img src="' + esc(url) + '" alt="Pré-visualização de ' + esc(it.title || it.name) + '" />' : '<span class="sm-vazio">Sem imagem de pré-visualização na 3DX.</span>') + '</div>' +
+          '<dl class="sm-def" style="margin:0">' +
+            '<dt>Item</dt><dd class="sm-mono">' + esc(it.name) + '</dd>' +
+            '<dt>Revisão</dt><dd>' + esc(it.revision) + '</dd>' +
+            '<dt>Estado</dt><dd><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></dd>' +
+            '<dt>Owner</dt><dd>' + esc(it.owner) + '</dd>' +
+            '<dt>Modificado</dt><dd>' + esc(dataBR(it.modified)) + (n.dias === null || n.dias === undefined ? '' : ' · ' + n.dias + ' dia(s) sem alteração') + '</dd>' +
+            '<dt>Nível</dt><dd>' + n.nivel + (n.filhos.length ? ' · ' + n.filhos.length + ' filho(s)' : '') + '</dd>' +
+            (alertas.length ? '<dt>Alertas</dt><dd>' + alertas.join(' ') + '</dd>' : '') +
+          '</dl>' +
+          '<div class="sm-modal-acoes"><button type="button" class="sm-btn" id="sm-modal-3d">Ver em 3D (3DPlay)</button>' +
+            '<button type="button" class="sm-btn2" id="sm-modal-fechar2">Fechar</button></div>' +
+          '<div class="sm-modal-msg" id="sm-modal-msg"><span class="sm-vazio">O 3D abre no 3DPlay da plataforma, onde dá para girar, dar zoom e medir. Exige acesso ao app 3DPlay.</span></div>' +
+        '</div></div>';
+    $('sm-modal-fechar').focus();
+  }
+
+  function fecharModal() { noModal = null; if ($('sm-modal')) $('sm-modal').innerHTML = ''; }
+
+  function abrir3D() {
+    if (!noModal) return;
+    var it = noModal.item;
+    function falhou(msg) {
+      anotar('Abrir em 3D', 'ERRO', msg);
+      if ($('sm-modal-msg')) $('sm-modal-msg').innerHTML = '<div class="sm-erro">Não consegui abrir o 3DPlay: ' + esc(msg) + '</div>';
+    }
+    if (typeof require !== 'function') { falhou('fora do 3DDashboard'); return; }
+    require(['DS/TransientWidget/TransientWidget'], function (TW) {
+      try {
+        TW.showWidget(APP_3D, it.title || it.name, {
+          input: { asset: { physicalid: it.id, dtype: it.type || 'VPMReference', provider: 'EV6', serviceId: '3DSpace', contextId: estado.ctx } }
+        });
+        anotar('Abrir em 3D', 'OK', it.name);
+        fecharModal();
+      } catch (e) { falhou(textoErro(e)); }
+    }, function (e) { falhou('módulo de janelas da 3DX indisponível'); });
   }
 
   // ---------- processamento ----------
@@ -729,7 +808,7 @@
         '<td class="num">' + n.nivel + '</td>' +
         '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(it.name) + '">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
           (n.filhos.length ? '<span class="sm-filhos">(' + n.filhos.length + ')</span>' : '') + '</span></td>' +
-        '<td class="sm-celthumb">' + celulaThumb(it) + '</td>' +
+        '<td class="sm-celthumb">' + celulaThumb(it, n.idx) + '</td>' +
         '<td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
         '<td>' + esc(dataBR(it.modified)) + '</td><td>' + esc(it.owner) + '</td>' +
@@ -821,8 +900,9 @@
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
-      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-escolha') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
+      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-escolha') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
       if (!alvo || alvo === this) return;
+      if (alvo.classList.contains('sm-thumb-btn')) { abrirModal(Number(alvo.getAttribute('data-idx'))); return; }
       if (alvo.classList.contains('sm-escolha')) { ler(encontrados[Number(alvo.getAttribute('data-i'))]); return; }
       if (alvo.id === 'sm-exp-tudo') { expandirTudo(); return; }
       if (alvo.id === 'sm-rec-tudo') { aberto = {}; desenharArvore(); return; }
@@ -830,6 +910,17 @@
       if (aberto[idx]) delete aberto[idx]; else aberto[idx] = true;
       desenharArvore();
     });
+    // janela de detalhes: fechar clicando fora, no X, em Fechar ou com Esc
+    $('sm-modal').addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (t.id === 'sm-modal-fundo') { fecharModal(); return; }
+      while (t && t !== this) {
+        if (t.id === 'sm-modal-fechar' || t.id === 'sm-modal-fechar2') { fecharModal(); return; }
+        if (t.id === 'sm-modal-3d') { abrir3D(); return; }
+        t = t.parentNode;
+      }
+    });
+    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && noModal) fecharModal(); });
     if (typeof require !== 'function') { modoForaDoDashboard(); return; }
     var esperando = setTimeout(function () { if (!WAF) modoForaDoDashboard(); }, 15000);
     require(['DS/WAFData/WAFData'], function (W) {
