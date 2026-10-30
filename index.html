@@ -177,6 +177,40 @@
   .sm-tabela tr.sm-linha2d td { background: #23272A; }
   .sm-link2d { border: 0; background: none; padding: 0; font: inherit; color: var(--destaque); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; }
   .sm-link2d:hover { color: var(--destaque-h); }
+  .sm-modos { display: inline-flex; margin-left: 8px; background: #222528; border: 1px solid var(--borda); border-radius: 9px; padding: 3px; gap: 2px; }
+  .sm-modo { border: 0; background: none; color: var(--texto3); font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
+  .sm-modo:hover { color: var(--titulo); }
+  .sm-modo[aria-pressed="true"] { background: var(--destaque); color: #1A1A1A; }
+  .sm-cart-topo { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+  .sm-cart-linha { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+  .sm-cart-linha select { height: 40px; min-width: 220px; background: var(--card2); color: var(--titulo); border: 1px solid var(--borda-forte); border-radius: 8px; padding: 0 10px; font: inherit; }
+  .sm-cart-escolha { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+  .sm-cart-escolha p { margin: 0; color: var(--texto3); font-size: 13px; }
+  .sm-cart-escolha .sm-btn2 { height: auto; min-height: 34px; padding: 6px 12px; }
+  .sm-cart-kpis { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+  .sm-semaforo-txt { display: inline-flex; align-items: center; gap: 6px; }
+  .sm-semaforo-txt i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 6px; }
+  .sm-semaforo-txt i:first-child { margin-left: 0; }
+  .sm-sinal { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; font-size: 12px; color: var(--titulo); white-space: nowrap; }
+  .sm-sinal i { width: 12px; height: 12px; border-radius: 50%; background: var(--cor); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor) 25%, transparent); }
+  .sm-sinal.s-cinza { color: var(--texto3); }
+  .sm-cart-motivo { font-size: 11px; color: var(--texto3); margin-top: 3px; max-width: 220px; line-height: 1.35; }
+  .sm-cart-sub { font-size: 11px; color: var(--texto3); margin-top: 2px; white-space: nowrap; }
+  .sm-marca { flex-wrap: wrap; row-gap: 8px; }
+  @media (max-width: 640px) { .sm-modos { margin-left: 0; } }
+  .sm-erro-txt { font-size: 11px; color: #F08A8A; margin-top: 2px; }
+  .sm-pct { display: flex; flex-direction: column; gap: 4px; min-width: 130px; }
+  .sm-pct-b { height: 6px; background: #3A3D40; border-radius: 3px; overflow: hidden; }
+  .sm-pct-b i { display: block; height: 100%; border-radius: 3px; }
+  .sm-pct span { font-size: 12px; color: var(--texto3); } .sm-pct strong { color: var(--titulo); }
+  .sm-icone-btn { width: 30px; height: 30px; border: 1px solid transparent; background: none; color: var(--texto3); border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .sm-icone-btn:hover { border-color: var(--borda-forte); color: #F08A8A; }
+  .sm-voltar { margin-bottom: 14px; }
+  .sm-progresso { display: flex; flex-direction: column; gap: 8px; padding: 28px; }
+  .sm-progresso strong { color: var(--titulo); font-size: 15px; }
+  .sm-barra-prog { height: 6px; background: #3A3D40; border-radius: 3px; overflow: hidden; max-width: 480px; }
+  .sm-barra-prog i { display: block; height: 100%; background: var(--destaque); transition: width 0.3s; }
+  .sm-link3d[disabled] { cursor: default; text-decoration: none; }
   .sm-link3d { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(201,205,209,0.35); text-underline-offset: 3px; }
   .sm-link3d.forte { font-weight: 600; }
   .sm-link3d:hover { color: var(--destaque); text-decoration-color: currentColor; }
@@ -224,7 +258,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v1.3 (30/10/2026)';
+  var VERSAO = 'v1.4 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -249,6 +283,12 @@
   var extrasEstado = '';   // reservas e revisões: '', 'carregando', 'ok', 'erro'
   var filtro = null;       // { chave, rotulo } do filtro aplicado pelos gráficos e indicadores
   var cfg = { limite: 15, metaPct: 90, metaData: '' };
+  var modo = 'montagem';     // 'montagem' ou 'carteira'
+  var carteiras = null;      // { atual, listas: { nome: [ {id,name,title,revision,state,type} ] } }
+  var carteiraDados = {};    // id da montagem -> { foto, resumo, erro }
+  var carteiraLendo = null;  // { i, total, nome } enquanto lê
+  var carteiraBusca = [];    // resultados da busca para adicionar
+  var deCarteira = false;    // a montagem aberta veio da carteira
 
   var ROTULOS = { IN_WORK: 'Em trabalho', FROZEN: 'Congelado', RELEASED: 'Liberado', PRIVATE: 'Privado', OBSOLETE: 'Obsoleto' };
   var ORDEM_EST = ['RELEASED', 'FROZEN', 'IN_WORK', 'PRIVATE', 'OBSOLETE'];
@@ -264,7 +304,8 @@
 
   var TEMPLATE =
     '<div class="sm-root"><div class="sm-app">' +
-      '<div class="sm-topo"><div class="sm-marca"><img class="sm-logo" src="' + LOGO_SKA + '" alt="SKA + GoEngineer" /><span class="sm-sep" aria-hidden="true"></span><h1>Status de Montagens</h1><span class="sm-selo">' + VERSAO + '</span></div>' +
+      '<div class="sm-topo"><div class="sm-marca"><img class="sm-logo" src="' + LOGO_SKA + '" alt="SKA + GoEngineer" /><span class="sm-sep" aria-hidden="true"></span><h1>Status de Montagens</h1><span class="sm-selo">' + VERSAO + '</span>' +
+        '<div class="sm-modos" role="group" aria-label="Visão"><button type="button" class="sm-modo" id="sm-modo-montagem" aria-pressed="true">Montagem</button><button type="button" class="sm-modo" id="sm-modo-carteira" aria-pressed="false">Carteira</button></div></div>' +
         '<span class="sm-conexao" id="sm-conexao">Conectando à 3DEXPERIENCE...</span></div>' +
       '<div class="sm-barra">' +
         '<div class="sm-grupo">' +
@@ -300,6 +341,7 @@
               '<dt>Responsáveis</dt><dd>Itens únicos que ainda não estão liberados nem obsoletos, agrupados pelo owner.</dd>' +
               '<dt>Reservado</dt><dd>Item reservado (travado para edição) por alguém. Reservado e parado: reservado e sem modificação há pelo menos o número de dias configurado.</dd>' +
               '<dt>Em revisão</dt><dd>A estrutura usa uma revisão, mas já existe uma revisão mais nova do mesmo item na 3DX (ex.: estrutura na rev. A liberada, rev. B em trabalho).</dd>' +
+              '<dt>Carteira</dt><dd>Lista de montagens acompanhadas juntas, salva neste navegador. Situação: <strong>Crítico</strong> quando há pendente sob pai liberado, item liberado sem desenho liberado ou item reservado e parado; <strong>No prazo</strong> quando itens e desenhos liberados atingem a meta (%) das Configurações; <strong>Atenção</strong> nos demais casos.</dd>' +
               '<dt>Filtros</dt><dd>Clique numa fatia dos gráficos ou num indicador para ver só aqueles itens.</dd>' +
               '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
             '</dl>' +
@@ -547,7 +589,10 @@
     $('sm-conteudo').innerHTML = html;
   }
 
-  function ler(raiz) {
+  function ler(raiz, vindoDaCarteira) {
+    if (carteiraLendo) { mostrarAviso('Aguarde a carteira terminar de ler.', 'erro'); return; }
+    deCarteira = !!vindoDaCarteira;
+    trocarModo('montagem', true);
     $('sm-buscar').disabled = true;
     $('sm-atualizar').disabled = true;
     $('sm-conteudo').innerHTML = '<p class="sm-vazio">Lendo a estrutura de <strong>' + esc(raiz.title || raiz.name) + '</strong>. Em montagens grandes isso pode levar alguns segundos...</p>';
@@ -575,17 +620,243 @@
     });
   }
 
+  // ---------- carteira ----------
+  function lerCarteiras() {
+    var c = null;
+    try { c = JSON.parse(lerLocal('sm-carteiras') || 'null'); } catch (x) { c = null; }
+    if (!c || !c.listas) c = { atual: 'Minha carteira', listas: { 'Minha carteira': [] } };
+    if (!c.listas[c.atual]) c.atual = Object.keys(c.listas)[0] || 'Minha carteira';
+    if (!c.listas[c.atual]) c.listas[c.atual] = [];
+    carteiras = c;
+  }
+  function gravarCarteiras() { gravarLocal('sm-carteiras', JSON.stringify(carteiras)); }
+  function listaAtual() { return carteiras.listas[carteiras.atual] || []; }
+
+  function trocarModo(m, semDesenhar) {
+    modo = m;
+    $('sm-modo-montagem').setAttribute('aria-pressed', m === 'montagem' ? 'true' : 'false');
+    $('sm-modo-carteira').setAttribute('aria-pressed', m === 'carteira' ? 'true' : 'false');
+    $('sm-exportar').disabled = m === 'carteira' ? !listaAtual().some(function (x) { return carteiraDados[x.id] && carteiraDados[x.id].resumo; }) : !dados;
+    $('sm-atualizar').disabled = m === 'carteira' ? !listaAtual().length : !bruto;
+    if (semDesenhar) return;
+    if (m === 'carteira') { desenharCarteira(); if (listaAtual().length && listaAtual().some(function (x) { return !carteiraDados[x.id]; })) lerCarteira(false); }
+    else if (dados) desenhar();
+    else $('sm-conteudo').innerHTML = '<div class="sm-inicio"><strong>Nenhuma montagem carregada</strong>Busque uma montagem pelo nome ou título para ver o status.</div>';
+  }
+
+  // guarda e restaura o estado de uma montagem lida
+  function fotografar() {
+    return { bruto: bruto, dados: dados, thumbs: thumbs, thumbsEstado: thumbsEstado, desenhos: desenhos, desenhosEstado: desenhosEstado,
+      desenhosLista: desenhosLista, reservas: reservas, revNovas: revNovas, extrasEstado: extrasEstado };
+  }
+  function restaurar(f) {
+    bruto = f.bruto; dados = f.dados; thumbs = f.thumbs; thumbsEstado = f.thumbsEstado; desenhos = f.desenhos; desenhosEstado = f.desenhosEstado;
+    desenhosLista = f.desenhosLista; reservas = f.reservas; revNovas = f.revNovas; extrasEstado = f.extrasEstado;
+    aberto = {}; filtro = null;
+  }
+
+  // resumo de uma montagem (usa o estado global já restaurado)
+  function resumirMontagem() {
+    var d = dados, total = d.unicos.length;
+    var lib = d.porEstado.RELEASED || 0;
+    var rd = resumoDesenhos(), acao = listaAcao();
+    var semDesLib = acao.filter(function (e) { return e.semDes; }).length;
+    var res = itensDoFiltro('kpi:reservados'), resPar = res.filter(function (e) { return e.parado; }).length;
+    var r = {
+      total: total, lib: lib, pctLib: pct(lib, total), naoLib: d.unicos.filter(function (u) { return u.item.state !== 'RELEASED' && u.item.state !== 'OBSOLETE'; }).length,
+      desTotal: rd.total, desLib: rd.lib, desFaltam: rd.faltam, desSem: rd.sem, pctDes: pct(rd.lib, rd.total), desOk: desenhosEstado === 'ok',
+      parados: d.parados, paiLib: d.paiLib, semDesLib: semDesLib, reservados: res.length, resPar: resPar,
+      revisao: itensDoFiltro('kpi:revisao').length, acao: acao.length, thumb: thumbs[d.raiz.item.name] || '', raiz: d.raiz.item
+    };
+    var motivos = [];
+    if (r.paiLib) motivos.push(r.paiLib + ' pendente(s) sob pai liberado');
+    if (r.semDesLib) motivos.push(r.semDesLib + ' liberado(s) sem desenho liberado');
+    if (r.resPar) motivos.push(r.resPar + ' reservado(s) e parado(s)');
+    if (motivos.length) { r.sinal = 'vermelho'; r.motivo = motivos.join(' · '); }
+    else if (r.pctLib >= cfg.metaPct && r.pctDes >= cfg.metaPct) { r.sinal = 'verde'; r.motivo = 'dentro da meta de ' + cfg.metaPct + '%'; }
+    else {
+      r.sinal = 'amarelo';
+      var m2 = [];
+      if (r.pctLib < cfg.metaPct) m2.push(r.pctLib + '% liberado');
+      if (r.pctDes < cfg.metaPct) m2.push(r.pctDes + '% dos desenhos liberados');
+      if (r.parados) m2.push(r.parados + ' parado(s)');
+      r.motivo = m2.join(' · ') + ' (meta ' + cfg.metaPct + '%)';
+    }
+    return r;
+  }
+
+  // lê uma montagem inteira sem mexer na tela
+  function lerMontagemSilenciosa(raiz) {
+    return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raiz.id) + '/expand', { expandDepth: -1, withPath: true })
+      .then(function (r) {
+        bruto = { raiz: raiz, membros: (r && r.member) || [], lido: agora() };
+        thumbs = {}; thumbsEstado = ''; reservas = {}; revNovas = {}; extrasEstado = '';
+        desenhos = {}; desenhosEstado = ''; desenhosLista = {};
+        processar();
+        return Promise.all([carregarThumbs(), carregarDesenhos()]);
+      });
+  }
+
+  function lerCarteira(tudo) {
+    if (carteiraLendo || !conectado) return;
+    var lista = listaAtual().filter(function (x) { return tudo || !carteiraDados[x.id]; });
+    if (!lista.length) { desenharCarteira(); return; }
+    var antes = dados ? fotografar() : null;
+    $('sm-buscar').disabled = true; $('sm-atualizar').disabled = true;
+    anotar('Carteira', '...', lista.length + ' montagem(ns)');
+    lista.reduce(function (p, raiz, i) {
+      return p.then(function () {
+        carteiraLendo = { i: i + 1, total: lista.length, nome: raiz.title || raiz.name };
+        desenharProgresso();
+        return lerMontagemSilenciosa(raiz).then(function () {
+          carteiraDados[raiz.id] = { foto: fotografar(), resumo: resumirMontagem(), lido: agora() };
+        }).catch(function (e) { carteiraDados[raiz.id] = { erro: textoErro(e) }; });
+      });
+    }, Promise.resolve()).then(function () {
+      carteiraLendo = null;
+      if (antes) restaurar(antes); else { dados = null; bruto = null; }
+      anotar('Carteira', 'OK', lista.length + ' montagem(ns) lida(s)');
+      $('sm-buscar').disabled = false;
+      trocarModo(modo, true);
+      desenhar();
+    });
+  }
+
+  function desenharProgresso() {
+    if (modo !== 'carteira' || !carteiraLendo) return;
+    var c = carteiraLendo;
+    $('sm-conteudo').innerHTML = '<div class="sm-caixa sm-progresso"><strong>Lendo a carteira: ' + c.i + ' de ' + c.total + '</strong>' +
+      '<span>' + esc(c.nome) + '</span><div class="sm-barra-prog"><i style="width:' + pct(c.i - 1, c.total) + '%"></i></div>' +
+      '<p class="sm-nota">Cada montagem é lida por completo (estrutura, desenhos, reservas e revisões). Montagens grandes levam mais tempo.</p></div>';
+  }
+
+  var COR_SINAL = { verde: '#0ca30c', amarelo: '#F5C75A', vermelho: '#E05252' };
+  var NOME_SINAL = { verde: 'No prazo', amarelo: 'Atenção', vermelho: 'Crítico' };
+
+  function desenharCarteira() {
+    var lista = listaAtual();
+    var html = '<div class="sm-caixa sm-cart-topo">' +
+      '<div class="sm-cart-linha"><label class="sm-campo" for="sm-cart-sel">Carteira<select id="sm-cart-sel">' +
+      Object.keys(carteiras.listas).map(function (n) { return '<option' + (n === carteiras.atual ? ' selected' : '') + '>' + esc(n) + '</option>'; }).join('') +
+      '</select></label>' +
+      '<button type="button" class="sm-btn2" id="sm-cart-nova">Nova carteira</button>' +
+      '<button type="button" class="sm-btn2" id="sm-cart-renomear">Renomear</button>' +
+      '<button type="button" class="sm-btn2" id="sm-cart-excluir">Excluir</button></div>' +
+      '<div class="sm-cart-linha"><div class="sm-busca" style="flex:1 1 260px">' + ICONE_BUSCA + '<input id="sm-cart-nome" type="text" placeholder="Adicionar montagem: nome ou título" aria-label="Adicionar montagem à carteira" /></div>' +
+      '<button type="button" class="sm-btn" id="sm-cart-add"' + (conectado ? '' : ' disabled') + '>Adicionar</button></div>' +
+      (carteiraBusca.length ? '<div class="sm-cart-escolha"><p>Encontrei ' + carteiraBusca.length + ' itens. Qual adicionar?</p>' + carteiraBusca.map(function (m, i) {
+        return '<button type="button" class="sm-btn2 sm-cart-pega" data-i="' + i + '"><strong>' + esc(m.title) + '</strong>&nbsp;· rev. ' + esc(m.revision) + ' · ' + esc(rotulo(m.state)) + '</button>';
+      }).join('') + '<button type="button" class="sm-btn2" id="sm-cart-cancela">Cancelar</button></div>' : '') +
+      '</div>';
+
+    if (!lista.length) {
+      $('sm-conteudo').innerHTML = html + '<div class="sm-inicio"><strong>Carteira vazia</strong>Adicione as montagens que você quer acompanhar juntas. A lista fica salva neste navegador.</div>';
+      return;
+    }
+    var res = lista.map(function (m) { return { m: m, c: carteiraDados[m.id] }; });
+    var ok = res.filter(function (x) { return x.c && x.c.resumo; });
+    var t = { total: 0, lib: 0, desTotal: 0, desLib: 0, parados: 0, reservados: 0, revisao: 0, acao: 0, verde: 0, amarelo: 0, vermelho: 0 };
+    ok.forEach(function (x) { var r = x.c.resumo; ['total', 'lib', 'desTotal', 'desLib', 'parados', 'reservados', 'revisao', 'acao'].forEach(function (k) { t[k] += r[k]; }); t[r.sinal]++; });
+
+    html += '<div class="sm-kpis sm-cart-kpis">' +
+      kpiC('Montagens', lista.length, ok.length < lista.length ? (lista.length - ok.length) + ' sem leitura' : 'na carteira', '') +
+      kpiC('Situação', '<span class="sm-semaforo-txt"><i style="background:' + COR_SINAL.verde + '"></i>' + t.verde + '<i style="background:' + COR_SINAL.amarelo + '"></i>' + t.amarelo + '<i style="background:' + COR_SINAL.vermelho + '"></i>' + t.vermelho + '</span>', 'no prazo · atenção · crítico', '') +
+      kpiC('Itens liberados', pct(t.lib, t.total) + '%', t.lib + ' de ' + t.total + ' itens', '') +
+      kpiC('Desenhos liberados', pct(t.desLib, t.desTotal) + '%', t.desLib + ' de ' + t.desTotal, '') +
+      kpiC('Pedem ação', t.acao, t.parados + ' parado(s) · ' + t.reservados + ' reservado(s)', t.acao ? 'alerta' : '') +
+      kpiC('Em revisão', t.revisao, 'revisão nova em andamento', '') +
+      '</div>';
+
+    var ordem = { vermelho: 0, amarelo: 1, verde: 2 };
+    res.sort(function (a, b) {
+      var sa = a.c && a.c.resumo ? ordem[a.c.resumo.sinal] : 3, sb = b.c && b.c.resumo ? ordem[b.c.resumo.sinal] : 3;
+      return sa - sb;
+    });
+    html += '<div class="sm-cartao"><div class="sm-painel-topo"><p>Ordenado do mais crítico para o mais tranquilo. Clique na montagem para ver o detalhe.</p></div>' +
+      '<div class="sm-tabela"><table style="min-width:1060px"><thead><tr><th>Situação</th><th>Thumbnail</th><th>Montagem</th><th>Estado</th><th>Itens liberados</th><th>Desenhos liberados</th>' +
+      '<th class="num">Pedem ação</th><th class="num">Parados</th><th class="num">Reservados</th><th class="num">Em revisão</th><th></th></tr></thead><tbody>';
+    res.forEach(function (x) {
+      var m = x.m, c = x.c, r = c && c.resumo;
+      var nome = '<button type="button" class="sm-link3d forte sm-cart-abrir" data-id="' + esc(m.id) + '"' + (r ? '' : ' disabled') + '>' + esc(m.title || m.name) + '</button><div class="sm-mono sm-cart-sub">' + esc(m.name) + ' · rev. ' + esc(m.revision) + '</div>';
+      var tirar = '<button type="button" class="sm-icone-btn sm-cart-tira" data-id="' + esc(m.id) + '" aria-label="Tirar ' + esc(m.title || m.name) + ' da carteira" title="Tirar da carteira">' + ICONE_X + '</button>';
+      if (!r) {
+        html += '<tr><td><span class="sm-sinal s-cinza">' + (c && c.erro ? 'Erro' : 'Não lida') + '</span></td><td></td><td>' + nome + (c && c.erro ? '<div class="sm-erro-txt">' + esc(c.erro) + '</div>' : '') + '</td><td colspan="7"><span class="sm-vazio">' + (c && c.erro ? 'não consegui ler esta montagem' : 'clique em Atualizar para ler') + '</span></td><td>' + tirar + '</td></tr>';
+        return;
+      }
+      html += '<tr' + (r.sinal === 'vermelho' ? ' class="marcada"' : '') + '>' +
+        '<td><span class="sm-sinal" style="--cor:' + COR_SINAL[r.sinal] + '" title="' + esc(r.motivo) + '"><i></i>' + NOME_SINAL[r.sinal] + '</span><div class="sm-cart-motivo">' + esc(r.motivo) + '</div></td>' +
+        '<td class="sm-celthumb"><button type="button" class="sm-thumb-btn sm-cart-abrir" data-id="' + esc(m.id) + '" aria-label="Abrir ' + esc(m.title || m.name) + '"><span class="sm-thumb">' + (r.thumb ? '<img src="' + esc(r.thumb) + '" alt="" />' : '<span class="sm-vazio">—</span>') + '</span></button></td>' +
+        '<td>' + nome + '</td>' +
+        '<td><span class="sm-est e-' + esc(r.raiz.state) + '">' + esc(rotulo(r.raiz.state)) + '</span></td>' +
+        '<td>' + barraPct(r.pctLib, r.lib + '/' + r.total) + '</td>' +
+        '<td>' + (r.desOk ? barraPct(r.pctDes, r.desLib + '/' + r.desTotal) : '<span class="sm-vazio">não consultado</span>') + '</td>' +
+        '<td class="num">' + (r.acao ? '<span class="sm-tag t-pai">' + r.acao + '</span>' : '—') + '</td>' +
+        '<td class="num">' + (r.parados ? '<span class="sm-tag t-parado">' + r.parados + '</span>' : '—') + '</td>' +
+        '<td class="num">' + (r.reservados ? '<span class="sm-tag t-res">' + ICONE_CADEADO + ' ' + r.reservados + '</span>' : '—') + '</td>' +
+        '<td class="num">' + (r.revisao ? '<span class="sm-tag t-rev">' + r.revisao + '</span>' : '—') + '</td>' +
+        '<td>' + tirar + '</td></tr>';
+    });
+    html += '</tbody></table></div></div>';
+    $('sm-conteudo').innerHTML = html;
+    $('sm-lido').textContent = '';
+  }
+
+  function kpiC(rotuloK, valor, detalhe, classe) {
+    return '<div class="sm-kpi' + (classe ? ' ' + classe : '') + '"><span class="r">' + esc(rotuloK) + '</span><span class="v">' + valor + '</span><span class="d">' + detalhe + '</span></div>';
+  }
+  function barraPct(p, txt) {
+    var cor = p >= cfg.metaPct ? CORES.RELEASED : p >= 50 ? '#F5C75A' : CORES.IN_WORK;
+    return '<div class="sm-pct"><div class="sm-pct-b"><i style="width:' + p + '%;background:' + cor + '"></i></div><span><strong>' + p + '%</strong> ' + esc(txt) + '</span></div>';
+  }
+
+  function cartAdicionar(m) {
+    var l = listaAtual();
+    if (!l.some(function (x) { return x.id === m.id; })) {
+      l.push({ id: m.id, name: m.name, title: m.title, revision: m.revision, state: m.state, type: m.type, owner: m.owner, modified: m.modified });
+      gravarCarteiras();
+    }
+    carteiraBusca = [];
+    lerCarteira(false);
+    if (!carteiraLendo) desenharCarteira();
+  }
+  function cartBuscar() {
+    var termo = (($('sm-cart-nome') || {}).value || '').trim();
+    if (!termo || !conectado) return;
+    $('sm-cart-add').disabled = true;
+    requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/search?$searchStr=' + encodeURIComponent(termo) + '&$top=30').then(function (r) {
+      var membros = (r && r.member) || [];
+      if (!membros.length) { mostrarAviso('Nenhum item encontrado com "' + esc(termo) + '".', 'erro'); $('sm-cart-add').disabled = false; return; }
+      mostrarAviso('');
+      var exato = membros.filter(function (m) { return m.name === termo || m.title === termo; })[0];
+      if (exato || membros.length === 1) { cartAdicionar(exato || membros[0]); return; }
+      carteiraBusca = membros; desenharCarteira();
+    }).catch(function (e) { mostrarAviso(esc(textoErro(e)), 'erro'); if ($('sm-cart-add')) $('sm-cart-add').disabled = false; });
+  }
+
+  function exportarCarteira() {
+    var sep = ';';
+    function c(v) { v = v === null || v === undefined ? '' : String(v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+    var linhas = [['Carteira', 'Montagem', 'Item', 'Revisão', 'Estado', 'Situação', 'Motivo', 'Itens únicos', 'Liberados', '% liberado', 'Desenhos', 'Desenhos liberados', '% desenhos', 'Pedem ação', 'Parados', 'Reservados', 'Em revisão'].join(sep)];
+    listaAtual().forEach(function (m) {
+      var r = carteiraDados[m.id] && carteiraDados[m.id].resumo; if (!r) return;
+      linhas.push([carteiras.atual, m.title, m.name, m.revision, rotulo(r.raiz.state), NOME_SINAL[r.sinal], r.motivo, r.total, r.lib, r.pctLib, r.desTotal, r.desLib, r.pctDes, r.acao, r.parados, r.reservados, r.revisao].map(c).join(sep));
+    });
+    var blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'carteira-' + carteiras.atual.replace(/[^\w-]+/g, '_') + '.csv';
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  }
+
   // ---------- thumbnails (via 3DSearch, que devolve o preview_url de cada item) ----------
   function carregarThumbs() {
-    if (!dados) return;
+    if (!dados) return Promise.resolve();
     var m = /^(https:\/\/)([a-z0-9]+)(-[a-z0-9]+)-space\.(.*?)\/enovia/i.exec(estado.spaceUrl || '');
-    if (!m) { thumbsEstado = 'erro'; anotar('Thumbnails', 'ERRO', 'não reconheci o endereço do 3DSpace'); desenharArvore(); return; }
+    if (!m) { thumbsEstado = 'erro'; extrasEstado = 'erro'; anotar('Thumbnails', 'ERRO', 'não reconheci o endereço do 3DSpace'); desenharArvore(); return Promise.resolve(); }
     var tenant = m[2].toUpperCase();
     var urlBusca = m[1] + m[2] + m[3] + '-fedsearch.' + m[4] + '/federated/search?xrequestedwith=xmlhttprequest&tenant=' + tenant;
     var nomes = [];
     dados.unicos.forEach(function (u) { if (u.item.name && !(u.item.name in thumbs)) nomes.push(u.item.name); });
     if (dados.raiz.item.name && !(dados.raiz.item.name in thumbs)) nomes.push(dados.raiz.item.name);
-    if (!nomes.length) { thumbsEstado = 'ok'; extrasEstado = 'ok'; desenharArvore(); return; }
+    if (!nomes.length) { thumbsEstado = 'ok'; extrasEstado = 'ok'; desenharArvore(); return Promise.resolve(); }
     thumbsEstado = 'carregando'; extrasEstado = 'carregando';
     anotar('Thumbnails', '...', nomes.length + ' itens');
     var idsEstrutura = {};
@@ -628,7 +899,7 @@
       }).catch(function (e) { falhas++; amostra.erroThumbs = textoErro(e); });
     }
     // o primeiro lote descobre a forma de chamada que funciona; os demais vão em paralelo
-    processarLote(lotes[0]).then(function () {
+    return processarLote(lotes[0]).then(function () {
       return Promise.all(lotes.slice(1).map(processarLote));
     }).then(function () {
       thumbsEstado = falhas === lotes.length ? 'erro' : 'ok';
@@ -665,9 +936,9 @@
   }
 
   function carregarDesenhos() {
-    if (!dados) return;
+    if (!dados) return Promise.resolve();
     var f = infoFed();
-    if (!f) { desenhosEstado = 'erro'; anotar('Desenhos', 'ERRO', 'não reconheci o endereço do 3DSpace'); desenhar(); return; }
+    if (!f) { desenhosEstado = 'erro'; anotar('Desenhos', 'ERRO', 'não reconheci o endereço do 3DSpace'); desenhar(); return Promise.resolve(); }
     var itens = dados.unicos.map(function (u) { return u.item; }).concat([dados.raiz.item]);
     var rotulos = [];
     itens.forEach(function (it) { var b = tituloBase(it.title || it.name).replace(/"/g, ''); if (b && rotulos.indexOf(b) < 0) rotulos.push(b); });
@@ -710,7 +981,7 @@
         }).catch(function (e) { falhas++; amostra.erroDesenhoDetalhe = textoErro(e); });
     }
     var cadeia = lotes.length ? buscarLote(lotes[0]).then(function () { return Promise.all(lotes.slice(1).map(buscarLote)); }) : Promise.resolve();
-    cadeia.then(function () {
+    return cadeia.then(function () {
       var ids = Object.keys(achados);
       amostra.desenhosAchados = ids.length;
       // detalha de 6 em 6 para não sobrecarregar a 3DX
@@ -1161,6 +1432,7 @@
   }
 
   function desenhar() {
+    if (modo === 'carteira') { if (!carteiraLendo) desenharCarteira(); return; }
     if (!dados) return;
     var d = dados, r = d.raiz.item, total = d.unicos.length;
     $('sm-lido').textContent = 'Lido às ' + bruto.lido;
@@ -1174,7 +1446,7 @@
     itensDoFiltro('kpi:reservados').forEach(function (e) { nRes++; if (e.parado) nResPar++; });
     nRev = itensDoFiltro('kpi:revisao').length;
 
-    var html = '';
+    var html = deCarteira ? '<button type="button" class="sm-btn2 sm-voltar" id="sm-voltar-carteira">← Voltar para a carteira</button>' : '';
     // cabeçalho da montagem
     var img = thumbs[r.name];
     html += '<div class="sm-cartao sm-cab">' +
@@ -1437,8 +1709,17 @@
     carregarCfg();
     $('sm-buscar').addEventListener('click', buscar);
     $('sm-nome').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
-    $('sm-atualizar').addEventListener('click', function () { if (bruto) ler(bruto.raiz); });
-    $('sm-exportar').addEventListener('click', exportar);
+    lerCarteiras();
+    $('sm-modo-montagem').addEventListener('click', function () { if (!carteiraLendo) trocarModo('montagem'); });
+    $('sm-modo-carteira').addEventListener('click', function () { trocarModo('carteira'); });
+    $('sm-atualizar').addEventListener('click', function () { if (modo === 'carteira') lerCarteira(true); else if (bruto) ler(bruto.raiz, deCarteira); });
+    $('sm-exportar').addEventListener('click', function () { if (modo === 'carteira') exportarCarteira(); else exportar(); });
+    $('sm-conteudo').addEventListener('change', function (ev) {
+      if (ev.target.id === 'sm-cart-sel') { carteiras.atual = ev.target.value; carteiraBusca = []; gravarCarteiras(); trocarModo('carteira'); }
+    });
+    $('sm-conteudo').addEventListener('keydown', function (ev) {
+      if (ev.target.id === 'sm-cart-nome' && ev.key === 'Enter') cartBuscar();
+    });
     $('sm-config-btn').addEventListener('click', function () {
       var painel = $('sm-config'), abrir = painel.hasAttribute('hidden');
       if (abrir) painel.removeAttribute('hidden'); else painel.setAttribute('hidden', '');
@@ -1448,8 +1729,36 @@
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
-      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-link3d') || alvo.classList.contains('sm-escolha') || alvo.classList.contains('sm-aba') || alvo.classList.contains('sm-filtrar') || alvo.id === 'sm-limpar-filtro' || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
+      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-cart-abrir') || alvo.classList.contains('sm-cart-tira') || alvo.classList.contains('sm-cart-pega') || /^sm-(cart-add|cart-nova|cart-renomear|cart-excluir|cart-cancela|voltar-carteira)$/.test(alvo.id || '') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-link3d') || alvo.classList.contains('sm-escolha') || alvo.classList.contains('sm-aba') || alvo.classList.contains('sm-filtrar') || alvo.id === 'sm-limpar-filtro' || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
       if (!alvo || alvo === this) return;
+      if (alvo.classList.contains('sm-cart-abrir')) {
+        var cd = carteiraDados[alvo.getAttribute('data-id')];
+        if (cd && cd.foto && !carteiraLendo) { restaurar(cd.foto); deCarteira = true; abaAtiva = ''; trocarModo('montagem'); var cx = document.querySelector('.sm-root'); if (cx) cx.scrollTop = 0; }
+        return;
+      }
+      if (alvo.classList.contains('sm-cart-tira')) {
+        var idT = alvo.getAttribute('data-id');
+        carteiras.listas[carteiras.atual] = listaAtual().filter(function (x) { return x.id !== idT; });
+        gravarCarteiras(); desenharCarteira(); return;
+      }
+      if (alvo.classList.contains('sm-cart-pega')) { cartAdicionar(carteiraBusca[Number(alvo.getAttribute('data-i'))]); return; }
+      if (alvo.id === 'sm-cart-add') { cartBuscar(); return; }
+      if (alvo.id === 'sm-cart-cancela') { carteiraBusca = []; desenharCarteira(); return; }
+      if (alvo.id === 'sm-voltar-carteira') { trocarModo('carteira'); return; }
+      if (alvo.id === 'sm-cart-nova' || alvo.id === 'sm-cart-renomear') {
+        var novo = window.prompt(alvo.id === 'sm-cart-nova' ? 'Nome da nova carteira:' : 'Novo nome da carteira:', alvo.id === 'sm-cart-nova' ? '' : carteiras.atual);
+        novo = (novo || '').trim();
+        if (!novo || carteiras.listas[novo]) return;
+        if (alvo.id === 'sm-cart-nova') carteiras.listas[novo] = [];
+        else { carteiras.listas[novo] = listaAtual(); delete carteiras.listas[carteiras.atual]; }
+        carteiras.atual = novo; gravarCarteiras(); desenharCarteira(); return;
+      }
+      if (alvo.id === 'sm-cart-excluir') {
+        if (!window.confirm('Excluir a carteira "' + carteiras.atual + '"? As montagens na 3DX não são alteradas.')) return;
+        delete carteiras.listas[carteiras.atual];
+        if (!Object.keys(carteiras.listas).length) carteiras.listas['Minha carteira'] = [];
+        carteiras.atual = Object.keys(carteiras.listas)[0]; gravarCarteiras(); trocarModo('carteira'); return;
+      }
       if (alvo.classList.contains('sm-thumb-btn')) { abrirModal(Number(alvo.getAttribute('data-idx'))); return; }
       if (alvo.classList.contains('sm-link3d')) {
         var it3 = itemPorId(alvo.getAttribute('data-id'));
