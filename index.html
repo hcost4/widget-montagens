@@ -10,104 +10,188 @@
 <meta name="strictMode" content="false" />
 <script type="text/javascript" src="https://uwa.netvibes.com/lib/c/UWA/js/UWA_Standalone_Alone.js"></script>
 <style>
-  html, body { margin: 0; height: 100%; background: #EEF0F3; }
-  .sm-root { font-family: "Segoe UI", Arial, sans-serif; color: #1B1F24; font-size: 14px; box-sizing: border-box; height: 100vh; overflow-y: auto; background: #EEF0F3; padding: 12px; }
+  html, body { margin: 0; height: 100%; background: #F3F4F6; }
+  .sm-root {
+    --fundo: #F3F4F6; --card: #FFFFFF; --borda: #E2E5EA; --borda-forte: #C9CED6;
+    --texto: #17202A; --texto2: #4B5563; --texto3: #6B7280;
+    --primaria: #1F3A5F; --primaria-h: #16304F; --link: #1D5C99;
+    --c-lib: #0ca30c; --c-cong: #2a78d6; --c-trab: #eb6834; --c-priv: #6250d6; --c-obs: #8a8984; --c-falta: #D5D8DE;
+    font-family: "Segoe UI", system-ui, -apple-system, Arial, sans-serif; color: var(--texto); font-size: 14px; line-height: 1.4;
+    box-sizing: border-box; height: 100vh; overflow-y: auto; background: var(--fundo);
+  }
   .sm-root * { box-sizing: border-box; }
-  .sm-app { max-width: 1400px; margin: 0 auto; background: #FFFFFF; border: 1px solid #D5D9DF; border-radius: 6px; }
-  .sm-topo { background: #1D3B5A; color: #fff; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-radius: 6px 6px 0 0; }
-  .sm-topo h1 { margin: 0; font-size: 16px; font-weight: 600; }
-  .sm-selo { font-size: 12px; background: rgba(255,255,255,0.16); padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
-  .sm-conexao { font-size: 12px; opacity: 0.9; }
-  .sm-barra { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #E3E6EA; }
-  .sm-grupo { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-  .sm-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #4F5864; font-weight: 600; }
-  .sm-campo input { height: 36px; padding: 0 10px; border: 1px solid #C3C9D1; border-radius: 4px; font-size: 14px; font-family: inherit; color: #1B1F24; background: #fff; }
-  .sm-btn { height: 36px; padding: 0 14px; border: 0; border-radius: 4px; background: #1D3B5A; color: #fff; font-size: 14px; font-family: inherit; cursor: pointer; }
-  .sm-btn[disabled] { background: #8A929C; cursor: default; }
-  .sm-btn2 { height: 36px; padding: 0 12px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; color: #1B1F24; font-size: 13px; font-family: inherit; cursor: pointer; }
-  .sm-btn2[disabled] { color: #8A929C; cursor: default; }
-  .sm-lido { font-size: 12px; color: #4F5864; }
-  .sm-corpo { padding: 16px; display: flex; flex-direction: column; gap: 18px; }
+  .sm-app { max-width: 1440px; margin: 0 auto; padding: 0 0 24px; }
+
+  /* barra superior */
+  .sm-topo { background: var(--primaria); color: #fff; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 20px; }
+  .sm-marca { display: flex; align-items: center; gap: 10px; }
+  .sm-marca h1 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: 0.2px; }
+  .sm-selo { font-size: 11px; background: rgba(255,255,255,0.14); padding: 2px 8px; border-radius: 10px; }
+  .sm-conexao { font-size: 12px; color: #D6DEE8; }
+
+  /* barra de busca */
+  .sm-barra { background: var(--card); border-bottom: 1px solid var(--borda); padding: 12px 20px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+  .sm-grupo { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .sm-busca { position: relative; }
+  .sm-busca svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--texto3); pointer-events: none; }
+  .sm-busca input { height: 38px; width: 340px; max-width: 70vw; padding: 0 12px 0 34px; border: 1px solid var(--borda-forte); border-radius: 6px; font: inherit; color: var(--texto); background: #fff; }
+  .sm-busca input:focus, .sm-campo input:focus { outline: 2px solid #9DB8D9; outline-offset: 0; border-color: var(--primaria); }
+  .sm-lido { font-size: 12px; color: var(--texto3); }
+  .sm-btn { height: 38px; padding: 0 16px; border: 0; border-radius: 6px; background: var(--primaria); color: #fff; font: inherit; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .sm-btn:hover { background: var(--primaria-h); }
+  .sm-btn[disabled] { background: #9AA3AE; cursor: default; }
+  .sm-btn2 { height: 38px; padding: 0 12px; border: 1px solid var(--borda-forte); border-radius: 6px; background: #fff; color: var(--texto); font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .sm-btn2:hover { background: #F6F7F9; }
+  .sm-btn2[disabled] { color: #9AA3AE; cursor: default; background: #fff; }
+  .sm-btn2[aria-expanded="true"] { background: #EEF2F7; border-color: var(--primaria); }
+
+  /* configurações */
+  .sm-config { background: #F8F9FB; border-bottom: 1px solid var(--borda); padding: 12px 20px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .sm-config[hidden] { display: none; }
+  .sm-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--texto2); font-weight: 600; }
+  .sm-campo input { height: 36px; padding: 0 10px; border: 1px solid var(--borda-forte); border-radius: 6px; font: inherit; font-weight: 400; color: var(--texto); background: #fff; }
+  .sm-config .sm-nota { margin: 0; align-self: center; }
+
+  .sm-corpo { padding: 20px; display: flex; flex-direction: column; gap: 16px; }
   #sm-conteudo { display: flex; flex-direction: column; gap: 16px; }
-  .sm-secao-t { margin: 0 0 10px; font-size: 12px; font-weight: 700; color: #4F5864; text-transform: uppercase; letter-spacing: 0.6px; }
-  .sm-caixa { border: 1px solid #E3E6EA; border-radius: 6px; padding: 14px 16px; }
+  #sm-aviso:empty { display: none; }
+
+  /* cartões */
+  .sm-caixa, .sm-cartao { background: var(--card); border: 1px solid var(--borda); border-radius: 8px; padding: 16px 18px; }
   .sm-caixa h3 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
-  .sm-linha { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
-  .sm-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
-  .sm-card { border: 1px solid #E3E6EA; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
-  .sm-card .r { font-size: 12px; color: #4F5864; font-weight: 600; }
-  .sm-card .v { font-size: 28px; font-weight: 600; line-height: 1.1; }
-  .sm-card .v small { font-size: 14px; color: #4F5864; font-weight: 500; }
-  .sm-card .d { font-size: 12px; color: #4F5864; }
-  .sm-card.alerta { border-color: #E8B4AD; background: #FDF3F2; }
-  .sm-card.destaque { border-color: #F0D79A; background: #FFF8E6; }
-  .sm-card.destaque .r { color: #6B4700; }
-  .sm-card.alerta .r, .sm-card.alerta .v, .sm-card.alerta .d { color: #7E2318; }
-  .sm-barra-est { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: #EEF0F3; }
-  .sm-legenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #4F5864; margin-top: 6px; }
-  .sm-legenda span { display: inline-flex; align-items: center; gap: 6px; }
-  .sm-q { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
-  .c-RELEASED { background: #2E7D4F; } .c-FROZEN { background: #8DB2DA; } .c-IN_WORK { background: #E08A2C; } .c-PRIVATE { background: #B9A6D6; } .c-OBSOLETE { background: #8A929C; } .c-OUTRO { background: #C3C9D1; }
-  .sm-est { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #EEF0F3; color: #3A414A; white-space: nowrap; }
-  .e-RELEASED { background: #E3F1E8; color: #1E5A36; } .e-FROZEN { background: #E4EEF8; color: #1F4A7A; } .e-IN_WORK { background: #FCEBD9; color: #8A4A0B; } .e-PRIVATE { background: #EFE9F7; color: #4E3A75; } .e-OBSOLETE { background: #EEF0F3; color: #3A414A; }
-  .sm-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 8px; white-space: nowrap; }
-  .t-pai { background: #FDF3F2; color: #9B2C20; border: 1px solid #E8B4AD; }
-  .t-parado { background: #FFF1CC; color: #6B4700; border: 1px solid #F0D79A; }
-  .t-2d { background: #EEF2F8; color: #1F4A7A; border: 1px solid #B9CBE2; }
-  .sm-tabela tr.sm-linha2d td { background: #FAFBFD; }
-  .sm-link2d { border: 0; background: none; padding: 0; font: inherit; color: #1D5C99; text-decoration: underline; cursor: pointer; text-align: left; }
-  .sm-link2d:hover { color: #123E69; }
+  .sm-cartao-t { margin: 0; font-size: 13px; font-weight: 600; color: var(--texto2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .sm-cartao-s { margin: 2px 0 0; font-size: 12px; color: var(--texto3); }
+
+  /* cabeçalho da montagem */
+  .sm-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; }
+  .sm-cab-img { width: 88px; height: 66px; border: 1px solid var(--borda); border-radius: 6px; background: #F6F7F9; display: flex; align-items: center; justify-content: center; overflow: hidden; flex: none; }
+  .sm-cab-img img { max-width: 100%; max-height: 100%; }
+  .sm-cab h2 { margin: 0; font-size: 20px; font-weight: 600; word-break: break-word; }
+  .sm-cab-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 6px; font-size: 13px; color: var(--texto2); }
+
+  /* resumo com gráficos */
+  .sm-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+  .sm-graf { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 14px; }
+  .sm-graf svg { flex: none; }
+  .sm-leg { list-style: none; margin: 0; padding: 0; flex: 1 1 140px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .sm-leg li { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 13px; }
+  .sm-leg .q { width: 12px; height: 12px; border-radius: 3px; }
+  .sm-leg .n { font-weight: 600; text-align: right; min-width: 24px; }
+  .sm-leg .p { color: var(--texto3); text-align: right; min-width: 36px; font-size: 12px; }
+  .sm-carregando { display: flex; align-items: center; gap: 10px; color: var(--texto3); font-size: 13px; margin-top: 14px; min-height: 140px; }
+
+  /* meta */
+  .sm-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 12px; padding: 3px 10px; border-radius: 12px; }
+  .s-ok { background: #E6F4EA; color: #1E6B34; } .s-atencao { background: #FFF3D6; color: #7A5200; } .s-vencido { background: #FDE8E8; color: #A12828; } .s-neutro { background: #EEF0F3; color: #3A414A; }
+  .sm-meta-num { display: flex; align-items: baseline; gap: 8px; margin-top: 14px; }
+  .sm-meta-num strong { font-size: 34px; font-weight: 700; line-height: 1; }
+  .sm-meta-num span { color: var(--texto3); font-size: 13px; }
+  .sm-medidor { position: relative; height: 12px; background: #EEF0F3; border-radius: 6px; margin: 14px 0 6px; }
+  .sm-medidor .barra { height: 12px; border-radius: 6px; background: var(--c-lib); }
+  .sm-medidor .alvo { position: absolute; top: -5px; width: 2px; height: 22px; background: var(--texto); }
+  .sm-medidor-r { position: relative; display: flex; justify-content: space-between; font-size: 11px; color: var(--texto3); height: 14px; }
+  .sm-medidor-r .m { position: absolute; top: 0; transform: translateX(-50%); color: var(--texto); font-weight: 600; white-space: nowrap; }
+  .sm-meta-dados { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+  .sm-meta-dados div span { display: block; font-size: 11px; color: var(--texto3); text-transform: uppercase; letter-spacing: 0.4px; }
+  .sm-meta-dados div strong { display: block; font-size: 17px; font-weight: 600; margin-top: 2px; }
+
+  /* indicadores */
+  .sm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .sm-kpi { background: var(--card); border: 1px solid var(--borda); border-radius: 8px; padding: 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  .sm-kpi .r { font-size: 12px; color: var(--texto2); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .sm-kpi .v { font-size: 26px; font-weight: 700; line-height: 1.15; }
+  .sm-kpi .d { font-size: 12px; color: var(--texto3); }
+  .sm-kpi.alerta .v { color: #A12828; }
+  .sm-kpi.atencao .v { color: #8A4A0B; }
+  .sm-ponto { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  /* abas */
+  .sm-abas-caixa { background: var(--card); border: 1px solid var(--borda); border-radius: 8px; }
+  .sm-abas { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--borda); padding: 0 12px; }
+  .sm-aba { border: 0; background: none; font: inherit; color: var(--texto2); padding: 12px 12px 10px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+  .sm-aba:hover { color: var(--texto); }
+  .sm-aba[aria-selected="true"] { color: var(--primaria); font-weight: 600; border-bottom-color: var(--primaria); }
+  .sm-aba .cont { font-size: 11px; font-weight: 600; background: #EEF0F3; color: var(--texto2); padding: 1px 7px; border-radius: 10px; }
+  .sm-aba .cont.alerta { background: #FDE8E8; color: #A12828; }
+  .sm-painel { padding: 16px 18px; }
+  .sm-painel-topo { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .sm-painel-topo p { margin: 0; color: var(--texto3); font-size: 13px; }
+
+  /* tabelas */
   .sm-tabela { overflow-x: auto; }
   .sm-tabela table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .sm-tabela th { text-align: left; font-weight: 600; color: #4F5864; font-size: 12px; padding: 7px 6px; border-bottom: 1px solid #E3E6EA; white-space: nowrap; }
-  .sm-tabela td { padding: 6px; border-bottom: 1px solid #EEF0F3; vertical-align: middle; }
-  .sm-tabela tr.marcada td { background: #FDF7F6; }
+  .sm-tabela th { text-align: left; font-weight: 600; color: var(--texto3); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; padding: 8px; border-bottom: 1px solid var(--borda); white-space: nowrap; background: #FAFBFC; }
+  .sm-tabela td { padding: 7px 8px; border-bottom: 1px solid #EEF0F3; vertical-align: middle; }
+  .sm-tabela tbody tr:hover td { background: #F7F9FC; }
+  .sm-tabela tr.marcada td { background: #FFF8F6; }
   .num { text-align: right; }
-  .sm-mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
-  .sm-tg { width: 26px; height: 26px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: #1B1F24; vertical-align: middle; }
-  .sm-tg:hover { background: #EEF0F3; }
-  .sm-tg-vazio { display: inline-block; width: 26px; }
-  .sm-thumb { width: 64px; height: 48px; border: 1px solid #E3E6EA; border-radius: 4px; background: #F6F7F9; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .sm-mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; color: var(--texto2); }
+
+  /* estados e etiquetas */
+  .sm-est { font-size: 12px; padding: 2px 9px; border-radius: 10px; background: #EEF0F3; color: #3A414A; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+  .sm-est::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.85; }
+  .e-RELEASED { background: #E6F4EA; color: #1E6B34; } .e-FROZEN { background: #E3EEFB; color: #1F4A7A; } .e-IN_WORK { background: #FDEBE2; color: #9A3E12; } .e-PRIVATE { background: #EEEAFB; color: #4B3AA3; } .e-OBSOLETE { background: #EEF0F3; color: #3A414A; }
+  .sm-tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 10px; white-space: nowrap; display: inline-block; }
+  .t-pai { background: #FDE8E8; color: #A12828; }
+  .t-parado { background: #FFF3D6; color: #7A5200; }
+  .t-2d { background: #E3EEFB; color: #1F4A7A; }
+  .sm-barra-est { display: flex; gap: 2px; height: 10px; border-radius: 5px; overflow: hidden; background: #EEF0F3; }
+  .c-RELEASED { background: var(--c-lib); } .c-FROZEN { background: var(--c-cong); } .c-IN_WORK { background: var(--c-trab); } .c-PRIVATE { background: var(--c-priv); } .c-OBSOLETE { background: var(--c-obs); } .c-OUTRO { background: #B4B8C0; }
+
+  /* árvore */
+  .sm-tg { width: 26px; height: 26px; border: 1px solid var(--borda-forte); border-radius: 5px; background: #fff; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: var(--texto); flex: none; }
+  .sm-tg:hover { background: #EEF2F7; }
+  .sm-tg-vazio { display: inline-block; width: 26px; flex: none; }
+  .sm-nome { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .sm-filhos { font-size: 11px; color: var(--texto3); }
+  .sm-thumb { width: 64px; height: 48px; border: 1px solid var(--borda); border-radius: 5px; background: #F6F7F9; display: flex; align-items: center; justify-content: center; overflow: hidden; }
   .sm-thumb img { max-width: 100%; max-height: 100%; display: block; }
-  .sm-thumb.vazio { color: #8A929C; font-size: 10px; }
-  .sm-tabela td.sm-celthumb { padding: 4px 6px; width: 76px; }
-  .sm-thumb-btn { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 4px; }
-  .sm-thumb-btn:hover .sm-thumb, .sm-thumb-btn:focus-visible .sm-thumb { border-color: #1D3B5A; box-shadow: 0 0 0 2px rgba(29,59,90,0.25); }
-  .sm-modal-fundo { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(20,24,30,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
-  .sm-modal { background: #fff; border-radius: 8px; width: 100%; max-width: 680px; max-height: 100%; overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 12px 40px rgba(0,0,0,0.25); }
+  .sm-thumb.vazio { color: var(--texto3); font-size: 10px; }
+  .sm-tabela td.sm-celthumb { padding: 4px 8px; width: 80px; }
+  .sm-thumb-btn { padding: 0; border: 0; background: none; cursor: zoom-in; border-radius: 5px; }
+  .sm-thumb-btn:hover .sm-thumb, .sm-thumb-btn:focus-visible .sm-thumb { border-color: var(--primaria); box-shadow: 0 0 0 2px rgba(31,58,95,0.2); }
+  .sm-tabela tr.sm-linha2d td { background: #FAFBFD; }
+  .sm-link2d { border: 0; background: none; padding: 0; font: inherit; color: var(--link); text-decoration: underline; cursor: pointer; text-align: left; }
+  .sm-link2d:hover { color: #123E69; }
+
+  /* responsáveis */
+  .sm-owner-g { display: grid; grid-template-columns: minmax(100px, 220px) minmax(0, 1fr) 48px 90px; gap: 10px 14px; align-items: center; font-size: 13px; }
+  .sm-owner-g .cab { font-size: 11px; color: var(--texto3); text-transform: uppercase; letter-spacing: 0.4px; font-weight: 600; }
+  .sm-owner-b { height: 10px; background: #EEF0F3; border-radius: 5px; }
+  .sm-owner-b div { height: 10px; background: #4A6E93; border-radius: 5px; }
+
+  /* janela de detalhes */
+  .sm-modal-fundo { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,32,0.55); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+  .sm-modal { background: #fff; border-radius: 10px; width: 100%; max-width: 680px; max-height: 100%; overflow: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 16px 48px rgba(0,0,0,0.25); }
   .sm-modal-topo { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-  .sm-modal-topo h2 { margin: 0; font-size: 17px; font-weight: 600; word-break: break-word; }
-  .sm-fechar { width: 36px; height: 36px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; color: #1B1F24; }
-  .sm-modal-img { background: #F6F7F9; border: 1px solid #E3E6EA; border-radius: 6px; display: flex; align-items: center; justify-content: center; min-height: 240px; padding: 12px; }
+  .sm-modal-topo h2 { margin: 0; font-size: 18px; font-weight: 600; word-break: break-word; }
+  .sm-fechar { width: 36px; height: 36px; border: 1px solid var(--borda-forte); border-radius: 6px; background: #fff; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--texto); }
+  .sm-modal-img { background: #F6F7F9; border: 1px solid var(--borda); border-radius: 8px; display: flex; align-items: center; justify-content: center; min-height: 240px; padding: 12px; }
   .sm-modal-img img { width: 432px; max-width: 100%; height: auto; }
   .sm-modal-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .sm-modal-msg { font-size: 13px; }
-  .sm-nome { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-  .sm-filhos { font-size: 11px; color: #4F5864; }
-  .sm-owner-g { display: grid; grid-template-columns: minmax(80px, 180px) minmax(0, 1fr) 40px; gap: 8px 12px; align-items: center; font-size: 13px; }
-  .sm-owner-b { height: 12px; background: #EEF0F3; border-radius: 2px; }
-  .sm-owner-b div { height: 12px; background: #4A6E93; border-radius: 2px; }
-  .sm-status { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; padding: 6px 12px; border-radius: 4px; }
-  .s-ok { background: #E3F1E8; color: #1E5A36; } .s-atencao { background: #FFF1CC; color: #6B4700; } .s-vencido { background: #FDF3F2; color: #9B2C20; } .s-neutro { background: #EEF0F3; color: #3A414A; }
-  .sm-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
-  .sm-mini div { border: 1px solid #E3E6EA; border-radius: 6px; padding: 10px 12px; }
-  .sm-mini span { display: block; font-size: 12px; color: #4F5864; }
-  .sm-mini strong { display: block; font-size: 18px; font-weight: 600; margin-top: 2px; }
-  .sm-nota { font-size: 12px; color: #4F5864; margin: 8px 0 0; }
-  .sm-aviso { background: #FFF8E6; border: 1px solid #F0D79A; border-radius: 6px; padding: 12px 14px; }
-  .sm-erro { background: #FDF3F2; border: 1px solid #E8B4AD; border-radius: 6px; padding: 12px 14px; color: #7E2318; }
+
+  /* mensagens e textos auxiliares */
+  .sm-aviso { background: #FFF8E6; border: 1px solid #F0D79A; border-radius: 8px; padding: 12px 14px; color: #5C4300; }
+  .sm-erro { background: #FDF3F2; border: 1px solid #E8B4AD; border-radius: 8px; padding: 12px 14px; color: #7E2318; }
+  .sm-vazio { color: var(--texto3); font-size: 13px; }
+  .sm-nota { font-size: 12px; color: var(--texto3); margin: 10px 0 0; }
+  .sm-def { margin: 10px 0 0; display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 6px 14px; font-size: 13px; color: var(--texto2); }
+  .sm-def dt { font-weight: 600; color: var(--texto); }
+  .sm-def dd { margin: 0; }
+  .sm-rodape { display: flex; flex-direction: column; gap: 8px; }
+  .sm-diag { background: transparent; border: 0; padding: 0; }
+  .sm-diag summary { cursor: pointer; font-weight: 600; font-size: 13px; color: var(--texto2); min-height: 24px; }
   .sm-log { list-style: none; margin: 0; padding: 0; font-size: 12px; }
   .sm-log li { padding: 3px 0; }
-  .sm-diag summary { cursor: pointer; font-weight: 600; font-size: 13px; min-height: 24px; }
-  .sm-diag textarea { width: 100%; height: 200px; font-family: Consolas, monospace; font-size: 12px; border: 1px solid #C3C9D1; border-radius: 4px; padding: 8px; margin-top: 8px; }
-  .sm-vazio { color: #4F5864; font-size: 13px; }
-  .sm-def { margin: 10px 0 0; display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 6px 14px; font-size: 13px; color: #3A414A; }
-  .sm-def dt { font-weight: 600; }
-  .sm-def dd { margin: 0; }
+  .sm-diag textarea { width: 100%; height: 180px; font-family: Consolas, monospace; font-size: 12px; border: 1px solid var(--borda-forte); border-radius: 6px; padding: 8px; margin-top: 8px; }
+  .sm-inicio { background: var(--card); border: 1px dashed var(--borda-forte); border-radius: 8px; padding: 40px 20px; text-align: center; color: var(--texto2); }
+  .sm-inicio strong { display: block; font-size: 16px; color: var(--texto); margin-bottom: 4px; }
+  @media (max-width: 640px) { .sm-corpo, .sm-barra, .sm-topo, .sm-config { padding-left: 12px; padding-right: 12px; } .sm-meta-dados { grid-template-columns: repeat(2, minmax(0, 1fr)); } .sm-owner-g { grid-template-columns: minmax(80px, 1fr) minmax(0, 1fr) 40px; } .sm-owner-g .so-larga { display: none; } }
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'mvp-7 (30/10/2026)';
+  var VERSAO = 'v1.0 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -135,46 +219,55 @@
   var ICONE_FECHADO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>';
   var ICONE_ABERTO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>';
 
+  var ICONE_BUSCA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>';
+  var ICONE_CONFIG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>';
+  var ICONE_BAIXAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>';
+  var ICONE_ATUALIZAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"></path></svg>';
+
   var TEMPLATE =
     '<div class="sm-root"><div class="sm-app">' +
-      '<div class="sm-topo"><div><h1 style="display:inline">Status de Montagens</h1><span class="sm-selo">' + VERSAO + '</span></div>' +
+      '<div class="sm-topo"><div class="sm-marca"><h1>Status de Montagens</h1><span class="sm-selo">' + VERSAO + '</span></div>' +
         '<span class="sm-conexao" id="sm-conexao">Conectando à 3DEXPERIENCE...</span></div>' +
       '<div class="sm-barra">' +
         '<div class="sm-grupo">' +
-          '<label class="sm-campo" for="sm-nome">Montagem<input id="sm-nome" type="text" placeholder="Nome ou título" style="min-width:260px" /></label>' +
+          '<div class="sm-busca">' + ICONE_BUSCA + '<input id="sm-nome" type="text" placeholder="Buscar montagem por nome ou título" aria-label="Montagem" /></div>' +
           '<button type="button" class="sm-btn" id="sm-buscar" disabled>Buscar</button>' +
         '</div>' +
         '<div class="sm-grupo">' +
-          '<label class="sm-campo" for="sm-limite">Parado após (dias)<input id="sm-limite" type="number" min="1" max="999" style="width:110px" /></label>' +
-          '<label class="sm-campo" for="sm-meta">Meta liberado (%)<input id="sm-meta" type="number" min="1" max="100" style="width:110px" /></label>' +
-          '<label class="sm-campo" for="sm-data">Data da meta<input id="sm-data" type="date" style="width:150px" /></label>' +
-        '</div>' +
-        '<div class="sm-grupo">' +
           '<span class="sm-lido" id="sm-lido"></span>' +
-          '<button type="button" class="sm-btn2" id="sm-exportar" disabled>Exportar Excel (CSV)</button>' +
-          '<button type="button" class="sm-btn2" id="sm-atualizar" disabled>Atualizar</button>' +
+          '<button type="button" class="sm-btn2" id="sm-atualizar" disabled>' + ICONE_ATUALIZAR + 'Atualizar</button>' +
+          '<button type="button" class="sm-btn2" id="sm-exportar" disabled>' + ICONE_BAIXAR + 'Excel</button>' +
+          '<button type="button" class="sm-btn2" id="sm-config-btn" aria-expanded="false" aria-controls="sm-config">' + ICONE_CONFIG + 'Configurações</button>' +
         '</div>' +
+      '</div>' +
+      '<div class="sm-config" id="sm-config" hidden>' +
+        '<label class="sm-campo" for="sm-limite">Parado após (dias)<input id="sm-limite" type="number" min="0" max="999" style="width:130px" /></label>' +
+        '<label class="sm-campo" for="sm-meta">Meta de liberação (%)<input id="sm-meta" type="number" min="1" max="100" style="width:150px" /></label>' +
+        '<label class="sm-campo" for="sm-data">Data da meta<input id="sm-data" type="date" style="width:160px" /></label>' +
+        '<p class="sm-nota">As configurações ficam salvas neste navegador.</p>' +
       '</div>' +
       '<div class="sm-corpo">' +
         '<div id="sm-aviso"></div>' +
-        '<div id="sm-conteudo"><p class="sm-vazio">Digite o nome da montagem e clique em Buscar.</p></div>' +
-        '<details class="sm-caixa sm-diag"><summary>Como os números são calculados</summary>' +
-          '<dl class="sm-def">' +
-            '<dt>Itens únicos</dt><dd>Cada peça ou submontagem conta uma vez, mesmo que apareça várias vezes na estrutura. A montagem principal não entra na conta.</dd>' +
-            '<dt>Ocorrências</dt><dd>Cada vez que um item aparece na estrutura (o que a árvore mostra).</dd>' +
-            '<dt>Parado</dt><dd>Em trabalho ou privado e sem modificação há pelo menos o número de dias configurado.</dd>' +
-            '<dt>Pai liberado</dt><dd>Item não liberado cujo pai direto já está liberado.</dd>' +
-            '<dt>Pendências por owner</dt><dd>Itens únicos que ainda não estão liberados nem obsoletos, agrupados pelo owner.</dd>' +
-            '<dt>Faltam desenhos</dt><dd>Itens sem nenhum desenho na 3DX mais itens cujo desenho ainda não está liberado. Conta peças, submontagens e a montagem principal.</dd>' +
-            '<dt>Desenho do item</dt><dd>Desenho (Drawing) que a própria 3DX liga àquele item ou configuração. Havendo mais de um, vale o mais maduro.</dd>' +
-            '<dt>Liberado sem desenho</dt><dd>Item liberado cujo desenho falta ou ainda não está liberado.</dd>' +
-            '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
-          '</dl>' +
-        '</details>' +
-        '<details class="sm-caixa sm-diag"><summary>Diagnóstico técnico</summary>' +
-          '<ul class="sm-log" id="sm-log" style="margin-top:8px"></ul>' +
-          '<textarea id="sm-diag" readonly aria-label="Texto de diagnóstico"></textarea>' +
-        '</details>' +
+        '<div id="sm-conteudo"><div class="sm-inicio"><strong>Nenhuma montagem carregada</strong>Busque uma montagem pelo nome ou título para ver o status.</div></div>' +
+        '<div class="sm-rodape">' +
+          '<details class="sm-diag"><summary>Como os números são calculados</summary>' +
+            '<dl class="sm-def">' +
+              '<dt>Itens únicos</dt><dd>Cada peça ou submontagem conta uma vez, mesmo que apareça várias vezes na estrutura. A montagem principal não entra na conta.</dd>' +
+              '<dt>Ocorrências</dt><dd>Cada vez que um item aparece na estrutura (o que a árvore mostra).</dd>' +
+              '<dt>Parado</dt><dd>Em trabalho ou privado e sem modificação há pelo menos o número de dias configurado.</dd>' +
+              '<dt>Pai liberado</dt><dd>Item não liberado cujo pai direto já está liberado.</dd>' +
+              '<dt>Faltam desenhos</dt><dd>Itens sem nenhum desenho na 3DX mais itens cujo desenho ainda não está liberado. Conta peças, submontagens e a montagem principal.</dd>' +
+              '<dt>Desenho do item</dt><dd>Desenho (Drawing) que a própria 3DX liga àquele item ou configuração. Havendo mais de um, vale o mais maduro.</dd>' +
+              '<dt>Liberado sem desenho</dt><dd>Item liberado cujo desenho falta ou ainda não está liberado.</dd>' +
+              '<dt>Responsáveis</dt><dd>Itens únicos que ainda não estão liberados nem obsoletos, agrupados pelo owner.</dd>' +
+              '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
+            '</dl>' +
+          '</details>' +
+          '<details class="sm-diag"><summary>Diagnóstico técnico</summary>' +
+            '<ul class="sm-log" id="sm-log" style="margin-top:8px"></ul>' +
+            '<textarea id="sm-diag" readonly aria-label="Texto de diagnóstico"></textarea>' +
+          '</details>' +
+        '</div>' +
       '</div>' +
     '</div><div id="sm-modal"></div></div>';
 
@@ -484,7 +577,7 @@
     }).then(function () {
       thumbsEstado = falhas === lotes.length ? 'erro' : 'ok';
       anotar('Thumbnails', falhas ? (falhas === lotes.length ? 'ERRO' : 'OK') : 'OK', falhas ? falhas + ' de ' + lotes.length + ' lote(s) falharam' : '');
-      desenharArvore();
+      desenhar();
     });
   }
 
@@ -833,161 +926,205 @@
     };
   }
 
-  // ---------- desenho ----------
+  // ---------- desenho da tela ----------
+  var CORES = { RELEASED: '#0ca30c', FROZEN: '#2a78d6', IN_WORK: '#eb6834', PRIVATE: '#6250d6', OBSOLETE: '#8a8984', OUTRO: '#B4B8C0', FALTA: '#D5D8DE' };
+  var abaAtiva = lerLocal('sm-aba') || '';
+
   function barraEstados(cont, total) {
-    var html = '<div class="sm-barra-est" role="img" aria-label="' + esc(ORDEM_EST.concat(Object.keys(cont)).filter(function (s, i, a) { return cont[s] && a.indexOf(s) === i; }).map(function (s) { return cont[s] + ' ' + rotulo(s).toLowerCase(); }).join(', ')) + '">';
     var ordem = ORDEM_EST.concat(Object.keys(cont).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; }));
-    ordem.forEach(function (s) { if (cont[s]) html += '<div class="c-' + classeEst(s) + '" style="width:' + (cont[s] * 100 / (total || 1)) + '%"></div>'; });
+    var rot = ordem.filter(function (s) { return cont[s]; }).map(function (s) { return cont[s] + ' ' + rotulo(s).toLowerCase(); }).join(', ');
+    var html = '<div class="sm-barra-est" role="img" aria-label="' + esc(rot) + '">';
+    ordem.forEach(function (s) { if (cont[s]) html += '<div class="c-' + classeEst(s) + '" style="width:' + (cont[s] * 100 / (total || 1)) + '%" title="' + esc(rotulo(s) + ': ' + cont[s]) + '"></div>'; });
     return html + '</div>';
   }
 
-  function blocoPrazo(total, lib) {
+  // gráfico de rosca em SVG; segs = [{ valor, cor, rotulo }]
+  function rosca(segs, centro, sub, aria) {
+    var total = 0; segs.forEach(function (s) { total += s.valor; });
+    var r = 52, c = 2 * Math.PI * r, vis = segs.filter(function (s) { return s.valor > 0; }).length;
+    var gap = vis > 1 ? 2.5 : 0, off = 0, arcos = '';
+    segs.forEach(function (s) {
+      if (!s.valor) return;
+      var len = s.valor / total * c, tam = Math.max(len - gap, 0.8);
+      arcos += '<circle r="' + r + '" cx="70" cy="70" fill="none" stroke="' + s.cor + '" stroke-width="18" stroke-dasharray="' + tam.toFixed(2) + ' ' + (c - tam).toFixed(2) + '" stroke-dashoffset="' + (-off).toFixed(2) + '" transform="rotate(-90 70 70)">' +
+        '<title>' + esc(s.rotulo) + ': ' + s.valor + ' (' + pct(s.valor, total) + '%)</title></circle>';
+      off += len;
+    });
+    return '<svg viewBox="0 0 140 140" width="140" height="140" role="img" aria-label="' + esc(aria) + '">' +
+      '<circle r="' + r + '" cx="70" cy="70" fill="none" stroke="#EEF0F3" stroke-width="18"></circle>' + arcos +
+      '<text x="70" y="70" text-anchor="middle" font-size="26" font-weight="700" fill="#17202A">' + esc(centro) + '</text>' +
+      '<text x="70" y="90" text-anchor="middle" font-size="11" fill="#4B5563">' + esc(sub) + '</text></svg>';
+  }
+
+  function legenda(segs) {
+    var total = 0; segs.forEach(function (s) { total += s.valor; });
+    return '<ul class="sm-leg">' + segs.map(function (s) {
+      return '<li><span class="q" style="background:' + s.cor + '"></span><span>' + esc(s.rotulo) + '</span><span class="n">' + s.valor + '</span><span class="p">' + pct(s.valor, total) + '%</span></li>';
+    }).join('') + '</ul>';
+  }
+
+  function cartaoItens(d) {
+    var total = d.unicos.length, lib = d.porEstado.RELEASED || 0;
+    var ordem = ORDEM_EST.concat(Object.keys(d.porEstado).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; }));
+    var segs = ordem.filter(function (s) { return d.porEstado[s] || s === 'RELEASED' || s === 'IN_WORK'; })
+      .map(function (s) { return { valor: d.porEstado[s] || 0, cor: CORES[s] || CORES.OUTRO, rotulo: rotulo(s) }; });
+    return '<div class="sm-cartao"><h3 class="sm-cartao-t">Maturidade dos itens</h3>' +
+      '<p class="sm-cartao-s">' + total + ' itens únicos · ' + d.nos.length + ' ocorrências</p>' +
+      '<div class="sm-graf">' + rosca(segs, pct(lib, total) + '%', 'liberado', pct(lib, total) + '% dos itens liberados') + legenda(segs) + '</div></div>';
+  }
+
+  function cartaoDesenhos() {
+    var cab = '<div class="sm-cartao"><h3 class="sm-cartao-t">Desenhos</h3><p class="sm-cartao-s">Peças, submontagens e a montagem principal</p>';
+    if (desenhosEstado === '' || desenhosEstado === 'carregando') return cab + '<div class="sm-carregando">Consultando os desenhos na 3DX...</div></div>';
+    if (desenhosEstado === 'erro') return cab + '<div class="sm-carregando">Não consegui ler os desenhos. Veja o diagnóstico técnico.</div></div>';
+    var rd = resumoDesenhos();
+    var segs = [
+      { valor: rd.lib, cor: CORES.RELEASED, rotulo: 'Liberado' },
+      { valor: rd.naoLib, cor: CORES.IN_WORK, rotulo: 'Não liberado' },
+      { valor: rd.sem, cor: CORES.FALTA, rotulo: 'Sem desenho' }
+    ];
+    return cab + '<div class="sm-graf">' + rosca(segs, pct(rd.lib, rd.total) + '%', 'liberados', pct(rd.lib, rd.total) + '% dos itens com desenho liberado') + legenda(segs) + '</div></div>';
+  }
+
+  function cartaoMeta(d) {
+    var total = d.unicos.length, lib = d.porEstado.RELEASED || 0;
     var meta = cfg.metaPct, atual = pct(lib, total);
-    var alvo = Math.ceil(meta * total / 100);
-    var faltam = Math.max(0, alvo - lib);
-    var status, cls, frase;
+    var faltam = Math.max(0, Math.ceil(meta * total / 100) - lib);
     var dias = null;
-    if (cfg.metaData) {
-      var t = Date.parse(cfg.metaData + 'T23:59:59');
-      if (!isNaN(t)) dias = Math.ceil((t - Date.now()) / 86400000);
-    }
-    if (faltam === 0) { status = 'Meta atingida'; cls = 's-ok'; frase = 'A montagem já tem ' + atual + '% dos itens liberados, acima da meta de ' + meta + '%.'; }
-    else if (dias === null) { status = 'Sem data de meta'; cls = 's-neutro'; frase = 'Faltam ' + faltam + ' itens para chegar a ' + meta + '% liberado. Informe a data da meta para ver o ritmo necessário.'; }
-    else if (dias < 0) { status = 'Prazo vencido'; cls = 's-vencido'; frase = 'A data da meta passou há ' + (-dias) + ' dia(s) e ainda faltam ' + faltam + ' itens para ' + meta + '% liberado.'; }
-    else {
-      var semanas = Math.max(dias / 7, 1 / 7);
-      var ritmo = Math.ceil(faltam / semanas);
-      status = 'Faltam ' + faltam + ' itens'; cls = 's-atencao';
-      frase = 'Para chegar a ' + meta + '% liberado em ' + dias + ' dia(s), é preciso liberar cerca de ' + ritmo + ' itens por semana.';
-    }
-    return '<div class="sm-caixa"><h2 class="sm-secao-t">Estou no prazo?</h2>' +
-      '<span class="sm-status ' + cls + '">' + esc(status) + '</span>' +
-      '<p style="margin:10px 0 0;font-size:16px;line-height:1.4">' + esc(frase) + '</p>' +
-      '<div class="sm-mini">' +
-        '<div><span>Liberado hoje</span><strong>' + atual + '% · ' + lib + ' de ' + total + '</strong></div>' +
-        '<div><span>Meta</span><strong>' + meta + '%' + (cfg.metaData ? ' até ' + cfg.metaData.split('-').reverse().join('/') : '') + '</strong></div>' +
-        '<div><span>Itens que faltam</span><strong>' + faltam + '</strong></div>' +
+    if (cfg.metaData) { var t = Date.parse(cfg.metaData + 'T23:59:59'); if (!isNaN(t)) dias = Math.ceil((t - Date.now()) / 86400000); }
+    var status, cls, ritmo = '—';
+    if (faltam === 0) { status = 'Meta atingida'; cls = 's-ok'; }
+    else if (dias === null) { status = 'Sem data de meta'; cls = 's-neutro'; }
+    else if (dias < 0) { status = 'Prazo vencido'; cls = 's-vencido'; }
+    else { status = 'Em andamento'; cls = 's-atencao'; ritmo = Math.ceil(faltam / Math.max(dias / 7, 1 / 7)) + '/sem'; }
+    var largura = Math.min(atual, 100), alvo = Math.min(meta, 100);
+    return '<div class="sm-cartao"><div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+        '<div><h3 class="sm-cartao-t">Meta de liberação</h3><p class="sm-cartao-s">' + meta + '% dos itens liberados' + (cfg.metaData ? ' até ' + cfg.metaData.split('-').reverse().join('/') : '') + '</p></div>' +
+        '<span class="sm-status ' + cls + '">' + esc(status) + '</span></div>' +
+      '<div class="sm-meta-num"><strong>' + atual + '%</strong><span>liberado hoje · ' + lib + ' de ' + total + ' itens</span></div>' +
+      '<div class="sm-medidor" role="img" aria-label="' + atual + '% liberado de uma meta de ' + meta + '%"><div class="barra" style="width:' + largura + '%"></div><div class="alvo" style="left:calc(' + alvo + '% - 1px)" title="Meta ' + meta + '%"></div></div>' +
+      '<div class="sm-medidor-r"><span class="m" style="left:' + alvo + '%;transform:translateX(' + (alvo > 85 ? '-100%' : alvo < 15 ? '0' : '-50%') + ')">meta ' + meta + '%</span></div>' +
+      '<div class="sm-meta-dados">' +
+        '<div><span>Faltam</span><strong>' + faltam + ' itens</strong></div>' +
         '<div><span>Dias até a meta</span><strong>' + (dias === null ? '—' : Math.max(dias, 0)) + '</strong></div>' +
+        '<div><span>Ritmo necessário</span><strong>' + ritmo + '</strong></div>' +
       '</div>' +
-      '<p class="sm-nota">A previsão pelo ritmo real e a curva semanal entram na fase 2, com o histórico.</p></div>';
+      (dias === null && faltam ? '<p class="sm-nota">Defina a data da meta em Configurações para ver o ritmo necessário.</p>' : '') +
+      '</div>';
+  }
+
+  function kpi(rotuloK, valor, detalhe, classe, cor) {
+    return '<div class="sm-kpi' + (classe ? ' ' + classe : '') + '"><span class="r">' + (cor ? '<span class="sm-ponto" style="background:' + cor + '"></span>' : '') + esc(rotuloK) + '</span>' +
+      '<span class="v">' + valor + '</span><span class="d">' + detalhe + '</span></div>';
   }
 
   function desenhar() {
     if (!dados) return;
-    var d = dados, total = d.unicos.length, r = d.raiz.item;
-    var lib = d.porEstado.RELEASED || 0;
-    $('sm-lido').textContent = 'Lido da 3DX às ' + bruto.lido;
+    var d = dados, r = d.raiz.item, total = d.unicos.length;
+    $('sm-lido').textContent = 'Lido às ' + bruto.lido;
+    var acaoLista = listaAcao();
+    var naoLib = d.unicos.filter(function (u) { return u.item.state !== 'RELEASED' && u.item.state !== 'OBSOLETE'; }).length;
+    var desOk = desenhosEstado === 'ok', rd = resumoDesenhos();
+    var semDesLib = acaoLista.filter(function (e) { return e.semDes; }).length;
+    if (!abaAtiva) abaAtiva = acaoLista.length ? 'acao' : 'estrutura';
 
     var html = '';
     // cabeçalho da montagem
-    html += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">' +
-      '<h2 style="margin:0;font-size:18px;font-weight:600">' + esc(r.title || r.name) + '</h2>' +
-      '<span class="sm-mono">' + esc(r.name) + '</span><span>rev. ' + esc(r.revision) + '</span>' +
-      '<span class="sm-est e-' + esc(r.state) + '">' + esc(rotulo(r.state)) + '</span>' +
-      '<span style="color:#4F5864;font-size:13px">owner ' + esc(r.owner) + '</span></div>';
+    var img = thumbs[r.name];
+    html += '<div class="sm-cartao sm-cab">' +
+      '<button type="button" class="sm-thumb-btn" data-idx="0" aria-label="Ver detalhes da montagem"><div class="sm-cab-img">' + (img ? '<img src="' + esc(img) + '" alt="" />' : '<span class="sm-vazio">...</span>') + '</div></button>' +
+      '<div style="min-width:0;flex:1 1 300px"><h2>' + esc(r.title || r.name) + '</h2>' +
+      '<div class="sm-cab-meta"><span class="sm-mono">' + esc(r.name) + '</span><span>Rev. ' + esc(r.revision) + '</span>' +
+      '<span class="sm-est e-' + esc(r.state) + '">' + esc(rotulo(r.state)) + '</span><span>Owner ' + esc(r.owner) + '</span>' +
+      '<span>Desenho ' + tagDesenho(r) + '</span></div></div></div>';
 
-    // o que falta: itens e desenhos
-    var naoLib = d.unicos.filter(function (u) { return u.item.state !== 'RELEASED' && u.item.state !== 'OBSOLETE'; }).length;
-    var rd = resumoDesenhos();
-    var desCarregando = desenhosEstado === '' || desenhosEstado === 'carregando';
-    html += '<div class="sm-cards">' +
-      '<div class="sm-card' + (naoLib ? ' destaque' : '') + '"><span class="r">Faltam liberar</span><span class="v">' + naoLib + ' <small>itens</small></span><span class="d">de ' + total + ' itens únicos</span></div>' +
-      '<div class="sm-card' + (!desCarregando && rd.faltam ? ' destaque' : '') + '"><span class="r">Faltam desenhos</span>' +
-        (desCarregando ? '<span class="v">...</span><span class="d">consultando a 3DX</span>'
-          : desenhosEstado === 'erro' ? '<span class="v">—</span><span class="d">não consegui ler os desenhos</span>'
-          : '<span class="v">' + rd.faltam + ' <small>desenhos</small></span><span class="d">' + rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)</span>') + '</div>' +
-      '<div class="sm-card"><span class="r">Desenhos liberados</span>' +
-        (desCarregando || desenhosEstado === 'erro' ? '<span class="v">—</span>' : '<span class="v">' + rd.lib + ' <small>de ' + rd.total + '</small></span>') +
-        '<span class="d">peças, submontagens e a montagem principal</span></div>' +
-      '</div>';
+    // resumo visual
+    html += '<div class="sm-resumo">' + cartaoItens(d) + cartaoDesenhos() + cartaoMeta(d) + '</div>';
 
     // indicadores
-    html += '<div class="sm-cards">';
-    html += '<div class="sm-card"><span class="r">Itens únicos</span><span class="v">' + total + '</span><span class="d">' + d.nos.length + ' ocorrências na estrutura</span></div>';
-    ORDEM_EST.concat(Object.keys(d.porEstado).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; })).forEach(function (s) {
-      if (!d.porEstado[s] && s !== 'RELEASED' && s !== 'IN_WORK') return;
-      var n = d.porEstado[s] || 0;
-      html += '<div class="sm-card"><span class="r">' + esc(rotulo(s)) + '</span><span class="v">' + n + ' <small>' + pct(n, total) + '%</small></span></div>';
-    });
-    var acaoLista = listaAcao();
-    var atencao = acaoLista.length;
-    var semDesLib = acaoLista.filter(function (e) { return e.semDes; }).length;
-    html += '<div class="sm-card' + (atencao ? ' alerta' : '') + '"><span class="r">Pedem ação</span><span class="v">' + atencao + '</span>' +
-      '<span class="d">' + d.parados + ' parado(s) · ' + d.paiLib + ' com pai liberado' + (desenhosEstado === 'ok' ? ' · ' + semDesLib + ' liberado(s) sem desenho' : '') + '</span></div>';
-    html += '</div>';
-    html += '<div>' + barraEstados(d.porEstado, total) + '<div class="sm-legenda">' +
-      ORDEM_EST.concat(Object.keys(d.porEstado).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; })).filter(function (s) { return d.porEstado[s]; }).map(function (s) {
-        return '<span><span class="sm-q c-' + classeEst(s) + '"></span>' + esc(rotulo(s)) + ' ' + d.porEstado[s] + '</span>';
-      }).join('') + '</div></div>';
+    html += '<div class="sm-kpis">' +
+      kpi('Faltam liberar', naoLib, 'de ' + total + ' itens únicos', naoLib ? 'atencao' : '', '') +
+      kpi('Faltam desenhos', desOk ? rd.faltam : '...', desOk ? rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)' : 'consultando', desOk && rd.faltam ? 'atencao' : '', '') +
+      kpi('Liberados sem desenho', desOk ? semDesLib : '...', 'item liberado sem desenho liberado', desOk && semDesLib ? 'alerta' : '', '') +
+      kpi('Parados', d.parados, cfg.limite + ' dias ou mais sem alteração', d.parados ? 'atencao' : '', '') +
+      kpi('Pedem ação', acaoLista.length, d.paiLib + ' com pai liberado', acaoLista.length ? 'alerta' : '', '') +
+      '</div>';
 
-    // prazo + pendências por owner
-    html += '<div class="sm-linha"><div style="flex:1 1 420px;min-width:0">' + blocoPrazo(total, lib) + '</div>';
-    html += '<div class="sm-caixa" style="flex:1 1 360px;min-width:0"><h2 class="sm-secao-t">Pendências por owner</h2>';
-    if (!d.owners.length) html += '<p class="sm-vazio">Nenhuma pendência: todos os itens estão liberados.</p>';
-    else {
-      var maior = d.owners[0].total || 1;
-      html += '<div class="sm-owner-g">';
-      d.owners.slice(0, 12).forEach(function (o) {
-        html += '<span title="' + esc(o.owner) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(o.owner) + '</span>' +
-          '<div class="sm-owner-b" role="img" aria-label="' + o.total + ' pendências"><div style="width:' + (o.total * 100 / maior) + '%"></div></div>' +
-          '<span class="num"><strong>' + o.total + '</strong></span>';
-      });
-      html += '</div><p class="sm-nota">Itens únicos ainda não liberados.' + (d.owners.length > 12 ? ' Mostrando 12 de ' + d.owners.length + ' owners.' : '') + '</p>';
-    }
-    html += '</div></div>';
-
-    // submontagens
-    html += '<div class="sm-caixa"><h2 class="sm-secao-t">Maturidade por submontagem (1º nível)</h2>';
-    if (!d.subs.length) html += '<p class="sm-vazio">Esta montagem não tem submontagens no 1º nível.</p>';
-    else {
-      html += '<div class="sm-tabela"><table style="min-width:640px"><thead><tr><th>Submontagem</th><th>Estado</th><th class="num">Itens</th><th style="width:30%">Distribuição</th><th class="num">Liberado</th><th class="num">Desenhos liberados</th><th>Alertas</th></tr></thead><tbody>';
-      d.subs.forEach(function (s) {
-        var it = s.no.item, l = s.cont.RELEASED || 0;
-        var celDes = '...';
-        if (desenhosEstado === 'ok') {
-          var idsDes = s.ids.concat([it.id]), libDes = 0, vistosDes = {};
-          idsDes.forEach(function (id) { if (vistosDes[id]) return; vistosDes[id] = 1; if (desenhos[id] && desenhos[id].state === 'RELEASED') libDes++; });
-          celDes = libDes + ' de ' + Object.keys(vistosDes).length;
-        } else if (desenhosEstado === 'erro') celDes = '—';
-        var alertas = '';
-        if (s.no.temFilhoPendente) alertas += '<span class="sm-tag t-pai">liberada com filho pendente</span> ';
-        if (s.parados) alertas += '<span class="sm-tag t-parado">' + s.parados + ' parado(s)</span>';
-        html += '<tr' + (s.no.temFilhoPendente ? ' class="marcada"' : '') + '><td><strong>' + esc(it.title || it.name) + '</strong> <span class="sm-mono">' + esc(it.name) + '</span></td>' +
-          '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
-          '<td class="num">' + s.total + '</td><td>' + barraEstados(s.cont, s.total) + '</td>' +
-          '<td class="num">' + pct(l, s.total) + '%</td><td class="num">' + celDes + '</td><td>' + (alertas || '<span class="sm-vazio">—</span>') + '</td></tr>';
-      });
-      html += '</tbody></table></div>';
-    }
-    html += '</div>';
-
-    // itens que pedem ação
-    html += '<div class="sm-caixa"><h2 class="sm-secao-t">Itens que pedem ação</h2>';
-    if (!acaoLista.length) html += '<p class="sm-vazio">Nenhum item parado há ' + cfg.limite + ' dias ou mais, nenhum item pendente sob pai liberado' + (desenhosEstado === 'ok' ? ' e nenhum item liberado sem desenho liberado' : '') + '.</p>';
-    else {
-      html += '<div class="sm-tabela"><table style="min-width:900px"><thead><tr><th>Título</th><th>Item</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Owner</th><th>Por que está aqui</th><th class="num">Sem alteração</th></tr></thead><tbody>';
-      acaoLista.slice(0, 200).forEach(function (e) {
-        var u = e.u, it = u.item, motivos = [];
-        if (u.paiLiberado) motivos.push('<span class="sm-tag t-pai">pai liberado: ' + esc(Object.keys(u.pais).join(', ')) + '</span>');
-        if (e.semDes) motivos.push('<span class="sm-tag t-pai">liberado sem desenho liberado</span>');
-        if (u.parado) motivos.push('<span class="sm-tag t-parado">parado</span>');
-        html += '<tr><td>' + esc(it.title) + '</td><td class="sm-mono">' + esc(it.name) + '</td><td>' + esc(it.revision) + '</td>' +
-          '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
-          '<td>' + motivos.join(' ') + '</td><td class="num">' + (u.dias === null || u.dias === undefined ? '—' : u.dias + ' dias') + '</td></tr>';
-      });
-      html += '</tbody></table></div>' + (acaoLista.length > 200 ? '<p class="sm-nota">Mostrando 200 de ' + acaoLista.length + '. Use Exportar para ver todos.</p>' : '');
-    }
-    html += '</div>';
-
-    // árvore
-    html += '<div class="sm-caixa"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">' +
-      '<h2 class="sm-secao-t" style="margin:0">Estrutura</h2>' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="sm-btn2" id="sm-exp-tudo">Expandir tudo</button>' +
-      '<button type="button" class="sm-btn2" id="sm-rec-tudo">Recolher tudo</button></div></div>' +
-      '<div class="sm-tabela" id="sm-arvore"></div><p class="sm-nota" id="sm-arvore-nota"></p></div>';
+    // abas
+    var abas = [
+      { id: 'acao', nome: 'Pedem ação', cont: acaoLista.length, alerta: acaoLista.length > 0 },
+      { id: 'estrutura', nome: 'Estrutura', cont: d.nos.length },
+      { id: 'subs', nome: 'Submontagens', cont: d.subs.length },
+      { id: 'owners', nome: 'Responsáveis', cont: d.owners.length }
+    ];
+    html += '<div class="sm-abas-caixa"><div class="sm-abas" role="tablist" aria-label="Detalhes">' + abas.map(function (a) {
+      var sel = a.id === abaAtiva;
+      return '<button type="button" class="sm-aba" role="tab" id="sm-aba-' + a.id + '" data-aba="' + a.id + '" aria-selected="' + sel + '" aria-controls="sm-painel">' +
+        esc(a.nome) + '<span class="cont' + (a.alerta ? ' alerta' : '') + '">' + a.cont + '</span></button>';
+    }).join('') + '</div><div class="sm-painel" id="sm-painel" role="tabpanel" aria-labelledby="sm-aba-' + abaAtiva + '">' +
+      (abaAtiva === 'acao' ? painelAcao(acaoLista) : abaAtiva === 'subs' ? painelSubs(d) : abaAtiva === 'owners' ? painelOwners(d) : painelEstrutura()) +
+      '</div></div>';
 
     $('sm-conteudo').innerHTML = html;
-    desenharArvore();
+    if (abaAtiva === 'estrutura') desenharArvore();
+  }
+
+  function painelAcao(lista) {
+    var html = '<div class="sm-painel-topo"><p>Itens parados há ' + cfg.limite + ' dias ou mais, pendentes sob pai liberado' + (desenhosEstado === 'ok' ? ' ou liberados sem desenho liberado' : '') + '. Os mais graves vêm primeiro.</p></div>';
+    if (!lista.length) return html + '<p class="sm-vazio">Nada pedindo ação nesta montagem.</p>';
+    html += '<div class="sm-tabela"><table style="min-width:900px"><thead><tr><th>Título</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Owner</th><th>Por que está aqui</th><th class="num">Sem alteração</th></tr></thead><tbody>';
+    lista.slice(0, 200).forEach(function (e) {
+      var u = e.u, it = u.item, motivos = [];
+      if (u.paiLiberado) motivos.push('<span class="sm-tag t-pai">pai liberado: ' + esc(Object.keys(u.pais).join(', ')) + '</span>');
+      if (e.semDes) motivos.push('<span class="sm-tag t-pai">liberado sem desenho liberado</span>');
+      if (u.parado) motivos.push('<span class="sm-tag t-parado">parado</span>');
+      html += '<tr><td title="' + esc(it.name) + '">' + esc(it.title) + '</td><td>' + esc(it.revision) + '</td>' +
+        '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
+        '<td>' + motivos.join(' ') + '</td><td class="num">' + (u.dias === null || u.dias === undefined ? '—' : u.dias + ' dias') + '</td></tr>';
+    });
+    return html + '</tbody></table></div>' + (lista.length > 200 ? '<p class="sm-nota">Mostrando 200 de ' + lista.length + '. Use o Excel para ver todos.</p>' : '');
+  }
+
+  function painelEstrutura() {
+    return '<div class="sm-painel-topo"><p id="sm-arvore-nota"></p>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="sm-btn2" id="sm-exp-tudo">Expandir tudo</button>' +
+      '<button type="button" class="sm-btn2" id="sm-rec-tudo">Recolher tudo</button></div></div>' +
+      '<div class="sm-tabela" id="sm-arvore"></div>';
+  }
+
+  function painelSubs(d) {
+    var html = '<div class="sm-painel-topo"><p>Submontagens do 1º nível, com a maturidade de tudo o que está abaixo de cada uma.</p></div>';
+    if (!d.subs.length) return html + '<p class="sm-vazio">Esta montagem não tem submontagens no 1º nível.</p>';
+    html += '<div class="sm-tabela"><table style="min-width:760px"><thead><tr><th>Submontagem</th><th>Estado</th><th class="num">Itens</th><th style="width:28%">Distribuição</th><th class="num">Liberado</th><th class="num">Desenhos liberados</th><th>Alertas</th></tr></thead><tbody>';
+    d.subs.forEach(function (s) {
+      var it = s.no.item, l = s.cont.RELEASED || 0, celDes = '...';
+      if (desenhosEstado === 'ok') {
+        var libDes = 0, vistosDes = {};
+        s.ids.concat([it.id]).forEach(function (id) { if (vistosDes[id]) return; vistosDes[id] = 1; if (desenhos[id] && desenhos[id].state === 'RELEASED') libDes++; });
+        celDes = libDes + ' de ' + Object.keys(vistosDes).length;
+      } else if (desenhosEstado === 'erro') celDes = '—';
+      var alertas = '';
+      if (s.no.temFilhoPendente) alertas += '<span class="sm-tag t-pai">liberada com filho pendente</span> ';
+      if (s.parados) alertas += '<span class="sm-tag t-parado">' + s.parados + ' parado(s)</span>';
+      html += '<tr' + (s.no.temFilhoPendente ? ' class="marcada"' : '') + '><td><strong>' + esc(it.title || it.name) + '</strong></td>' +
+        '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
+        '<td class="num">' + s.total + '</td><td>' + barraEstados(s.cont, s.total) + '</td>' +
+        '<td class="num">' + pct(l, s.total) + '%</td><td class="num">' + celDes + '</td><td>' + (alertas || '<span class="sm-vazio">—</span>') + '</td></tr>';
+    });
+    return html + '</tbody></table></div>';
+  }
+
+  function painelOwners(d) {
+    var html = '<div class="sm-painel-topo"><p>Itens únicos ainda não liberados, por owner.</p></div>';
+    if (!d.owners.length) return html + '<p class="sm-vazio">Nenhuma pendência: todos os itens estão liberados.</p>';
+    var maior = d.owners[0].total || 1;
+    html += '<div class="sm-owner-g"><span class="cab">Owner</span><span class="cab">Pendências</span><span class="cab num">Itens</span><span class="cab num so-larga">Parados</span>';
+    d.owners.forEach(function (o) {
+      html += '<span title="' + esc(o.owner) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(o.owner) + '</span>' +
+        '<div class="sm-owner-b" role="img" aria-label="' + o.total + ' pendências"><div style="width:' + (o.total * 100 / maior) + '%"></div></div>' +
+        '<span class="num"><strong>' + o.total + '</strong></span><span class="num so-larga">' + (o.parados ? '<span class="sm-tag t-parado">' + o.parados + '</span>' : '—') + '</span>';
+    });
+    return html + '</div>';
   }
 
   function desenhosDe(no) { return desenhosEstado === 'ok' ? (desenhosLista[no.item.id] || []) : []; }
@@ -1011,6 +1148,7 @@
   }
 
   function desenharArvore() {
+    if (!dados || !$('sm-arvore')) return;
     var linhas = [];   // { no } para itens 3D, { no, d } para desenhos 2D
     var cortado = false;
     (function percorrer(no) {
@@ -1104,14 +1242,14 @@
 
   // ---------- configurações ----------
   function carregarCfg() {
-    var l = parseInt(lerLocal('sm-limite'), 10); if (l > 0) cfg.limite = l;
+    var l = parseInt(lerLocal('sm-limite'), 10); if (l >= 0) cfg.limite = l;
     var m = parseInt(lerLocal('sm-meta'), 10); if (m > 0 && m <= 100) cfg.metaPct = m;
     cfg.metaData = lerLocal('sm-data') || '';
     $('sm-limite').value = cfg.limite; $('sm-meta').value = cfg.metaPct; $('sm-data').value = cfg.metaData;
   }
   function mudouCfg() {
     var l = parseInt($('sm-limite').value, 10), m = parseInt($('sm-meta').value, 10);
-    if (l > 0) { cfg.limite = l; gravarLocal('sm-limite', String(l)); }
+    if (l >= 0) { cfg.limite = l; gravarLocal('sm-limite', String(l)); }
     if (m > 0 && m <= 100) { cfg.metaPct = m; gravarLocal('sm-meta', String(m)); }
     cfg.metaData = $('sm-data').value || ''; gravarLocal('sm-data', cfg.metaData);
     if (bruto) {
@@ -1138,11 +1276,16 @@
     $('sm-nome').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
     $('sm-atualizar').addEventListener('click', function () { if (bruto) ler(bruto.raiz); });
     $('sm-exportar').addEventListener('click', exportar);
+    $('sm-config-btn').addEventListener('click', function () {
+      var painel = $('sm-config'), abrir = painel.hasAttribute('hidden');
+      if (abrir) painel.removeAttribute('hidden'); else painel.setAttribute('hidden', '');
+      this.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    });
     ['sm-limite', 'sm-meta', 'sm-data'].forEach(function (id) { $(id).addEventListener('change', mudouCfg); });
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
-      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-escolha') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
+      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-escolha') || alvo.classList.contains('sm-aba') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
       if (!alvo || alvo === this) return;
       if (alvo.classList.contains('sm-thumb-btn')) { abrirModal(Number(alvo.getAttribute('data-idx'))); return; }
       if (alvo.classList.contains('sm-link2d')) {
@@ -1151,6 +1294,7 @@
         if (achado) { var m = abrirPorLink({ id: achado.id, type: 'Drawing', title: achado.title, name: achado.name }, 'o desenho'); if (/bloqueou/.test(m)) mostrarAviso(m.replace(/^<div class="sm-aviso">|<\/div>$/g, '')); }
         return;
       }
+      if (alvo.classList.contains('sm-aba')) { abaAtiva = alvo.getAttribute('data-aba'); gravarLocal('sm-aba', abaAtiva); desenhar(); return; }
       if (alvo.classList.contains('sm-escolha')) { ler(encontrados[Number(alvo.getAttribute('data-i'))]); return; }
       if (alvo.id === 'sm-exp-tudo') { expandirTudo(); return; }
       if (alvo.id === 'sm-rec-tudo') { aberto = {}; desenharArvore(); return; }
