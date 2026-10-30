@@ -2,87 +2,180 @@
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:widget="http://www.netvibes.com/ns/">
 <head>
 <meta charset="utf-8" />
-<title>Status de Montagens - Teste</title>
+<title>Status de Montagens</title>
 <meta name="author" content="SKA" />
-<meta name="description" content="Teste técnico: lê uma montagem da 3DEXPERIENCE usando a sessão do usuário." />
+<meta name="description" content="Status de maturidade, pendências e alertas de uma montagem da 3DEXPERIENCE." />
 <meta name="apiVersion" content="1.3" />
 <meta name="debugMode" content="false" />
 <meta name="strictMode" content="false" />
 <script type="text/javascript" src="https://uwa.netvibes.com/lib/c/UWA/js/UWA_Standalone_Alone.js"></script>
 <style>
-  html, body { margin: 0; height: 100%; }
-  .sm-root { font-family: "Segoe UI", Arial, sans-serif; color: #1B1F24; font-size: 14px; padding: 16px; box-sizing: border-box; height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  html, body { margin: 0; height: 100%; background: #EEF0F3; }
+  .sm-root { font-family: "Segoe UI", Arial, sans-serif; color: #1B1F24; font-size: 14px; box-sizing: border-box; height: 100vh; overflow-y: auto; background: #EEF0F3; padding: 12px; }
   .sm-root * { box-sizing: border-box; }
-  .sm-titulo { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-  .sm-titulo h1 { margin: 0; font-size: 17px; font-weight: 600; }
-  .sm-versao { font-size: 12px; color: #4F5864; }
-  .sm-info { font-size: 13px; color: #4F5864; margin-bottom: 12px; }
-  .sm-busca { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px; }
-  .sm-busca label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #4F5864; font-weight: 600; }
-  .sm-busca input { height: 38px; min-width: 260px; padding: 0 10px; border: 1px solid #C3C9D1; border-radius: 4px; font-size: 14px; }
-  .sm-btn { height: 38px; padding: 0 16px; border: 0; border-radius: 4px; background: #1D3B5A; color: #fff; font-size: 14px; cursor: pointer; }
+  .sm-app { max-width: 1400px; margin: 0 auto; background: #FFFFFF; border: 1px solid #D5D9DF; border-radius: 6px; }
+  .sm-topo { background: #1D3B5A; color: #fff; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 16px; border-radius: 6px 6px 0 0; }
+  .sm-topo h1 { margin: 0; font-size: 16px; font-weight: 600; }
+  .sm-selo { font-size: 12px; background: rgba(255,255,255,0.16); padding: 2px 8px; border-radius: 10px; margin-left: 8px; }
+  .sm-conexao { font-size: 12px; opacity: 0.9; }
+  .sm-barra { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #E3E6EA; }
+  .sm-grupo { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+  .sm-campo { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: #4F5864; font-weight: 600; }
+  .sm-campo input { height: 36px; padding: 0 10px; border: 1px solid #C3C9D1; border-radius: 4px; font-size: 14px; font-family: inherit; color: #1B1F24; background: #fff; }
+  .sm-btn { height: 36px; padding: 0 14px; border: 0; border-radius: 4px; background: #1D3B5A; color: #fff; font-size: 14px; font-family: inherit; cursor: pointer; }
   .sm-btn[disabled] { background: #8A929C; cursor: default; }
-  .sm-btn2 { height: 34px; padding: 0 12px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; color: #1B1F24; font-size: 13px; cursor: pointer; }
-  .sm-caixa { border: 1px solid #E3E6EA; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; }
-  .sm-caixa h2 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
-  .sm-log { list-style: none; margin: 0; padding: 0; font-size: 13px; }
-  .sm-log li { padding: 4px 0; display: flex; gap: 8px; align-items: baseline; }
-  .sm-tag { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 8px; min-width: 42px; text-align: center; }
-  .sm-ok { background: #E3F1E8; color: #1E5A36; }
-  .sm-erro { background: #FDF3F2; color: #9B2C20; }
-  .sm-and { background: #EEF0F3; color: #3A414A; }
-  .sm-detalhe { color: #4F5864; word-break: break-word; }
-  .sm-cards { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-  .sm-card { border: 1px solid #E3E6EA; border-radius: 6px; padding: 10px 14px; min-width: 130px; }
-  .sm-card span { display: block; font-size: 12px; color: #4F5864; }
-  .sm-card strong { display: block; font-size: 22px; font-weight: 600; margin-top: 2px; }
-  .sm-tabela { overflow-x: auto; }
-  .sm-tabela table { width: 100%; min-width: 760px; border-collapse: collapse; font-size: 13px; }
-  .sm-tabela th { text-align: left; font-weight: 600; color: #4F5864; font-size: 12px; padding: 6px; border-bottom: 1px solid #E3E6EA; }
-  .sm-tabela td { padding: 7px 6px; border-bottom: 1px solid #EEF0F3; }
+  .sm-btn2 { height: 36px; padding: 0 12px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; color: #1B1F24; font-size: 13px; font-family: inherit; cursor: pointer; }
+  .sm-btn2[disabled] { color: #8A929C; cursor: default; }
+  .sm-lido { font-size: 12px; color: #4F5864; }
+  .sm-corpo { padding: 16px; display: flex; flex-direction: column; gap: 18px; }
+  #sm-conteudo { display: flex; flex-direction: column; gap: 16px; }
+  .sm-secao-t { margin: 0 0 10px; font-size: 12px; font-weight: 700; color: #4F5864; text-transform: uppercase; letter-spacing: 0.6px; }
+  .sm-caixa { border: 1px solid #E3E6EA; border-radius: 6px; padding: 14px 16px; }
+  .sm-caixa h3 { margin: 0 0 10px; font-size: 15px; font-weight: 600; }
+  .sm-linha { display: flex; flex-wrap: wrap; gap: 16px; align-items: stretch; }
+  .sm-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+  .sm-card { border: 1px solid #E3E6EA; border-radius: 6px; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+  .sm-card .r { font-size: 12px; color: #4F5864; font-weight: 600; }
+  .sm-card .v { font-size: 28px; font-weight: 600; line-height: 1.1; }
+  .sm-card .v small { font-size: 14px; color: #4F5864; font-weight: 500; }
+  .sm-card .d { font-size: 12px; color: #4F5864; }
+  .sm-card.alerta { border-color: #E8B4AD; background: #FDF3F2; }
+  .sm-card.alerta .r, .sm-card.alerta .v, .sm-card.alerta .d { color: #7E2318; }
+  .sm-barra-est { display: flex; height: 12px; border-radius: 3px; overflow: hidden; background: #EEF0F3; }
+  .sm-legenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #4F5864; margin-top: 6px; }
+  .sm-legenda span { display: inline-flex; align-items: center; gap: 6px; }
+  .sm-q { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .c-RELEASED { background: #2E7D4F; } .c-FROZEN { background: #8DB2DA; } .c-IN_WORK { background: #E08A2C; } .c-PRIVATE { background: #B9A6D6; } .c-OBSOLETE { background: #8A929C; } .c-OUTRO { background: #C3C9D1; }
   .sm-est { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: #EEF0F3; color: #3A414A; white-space: nowrap; }
-  .sm-est-RELEASED { background: #E3F1E8; color: #1E5A36; }
-  .sm-est-FROZEN { background: #E4EEF8; color: #1F4A7A; }
-  .sm-est-IN_WORK { background: #FCEBD9; color: #8A4A0B; }
-  .sm-aviso { background: #FFF8E6; border: 1px solid #F0D79A; border-radius: 6px; padding: 12px 14px; margin-bottom: 16px; }
-  .sm-diag textarea { width: 100%; height: 220px; font-family: Consolas, monospace; font-size: 12px; border: 1px solid #C3C9D1; border-radius: 4px; padding: 8px; }
-  .sm-diag summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+  .e-RELEASED { background: #E3F1E8; color: #1E5A36; } .e-FROZEN { background: #E4EEF8; color: #1F4A7A; } .e-IN_WORK { background: #FCEBD9; color: #8A4A0B; } .e-PRIVATE { background: #EFE9F7; color: #4E3A75; } .e-OBSOLETE { background: #EEF0F3; color: #3A414A; }
+  .sm-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 8px; white-space: nowrap; }
+  .t-pai { background: #FDF3F2; color: #9B2C20; border: 1px solid #E8B4AD; }
+  .t-parado { background: #FFF1CC; color: #6B4700; border: 1px solid #F0D79A; }
+  .sm-tabela { overflow-x: auto; }
+  .sm-tabela table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sm-tabela th { text-align: left; font-weight: 600; color: #4F5864; font-size: 12px; padding: 7px 6px; border-bottom: 1px solid #E3E6EA; white-space: nowrap; }
+  .sm-tabela td { padding: 6px; border-bottom: 1px solid #EEF0F3; vertical-align: middle; }
+  .sm-tabela tr.marcada td { background: #FDF7F6; }
+  .num { text-align: right; }
+  .sm-mono { font-family: Consolas, "Courier New", monospace; font-size: 12px; }
+  .sm-tg { width: 26px; height: 26px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: #1B1F24; vertical-align: middle; }
+  .sm-tg:hover { background: #EEF0F3; }
+  .sm-tg-vazio { display: inline-block; width: 26px; }
+  .sm-nome { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .sm-filhos { font-size: 11px; color: #4F5864; }
+  .sm-owner-g { display: grid; grid-template-columns: minmax(80px, 180px) minmax(0, 1fr) 40px; gap: 8px 12px; align-items: center; font-size: 13px; }
+  .sm-owner-b { height: 12px; background: #EEF0F3; border-radius: 2px; }
+  .sm-owner-b div { height: 12px; background: #4A6E93; border-radius: 2px; }
+  .sm-status { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; padding: 6px 12px; border-radius: 4px; }
+  .s-ok { background: #E3F1E8; color: #1E5A36; } .s-atencao { background: #FFF1CC; color: #6B4700; } .s-vencido { background: #FDF3F2; color: #9B2C20; } .s-neutro { background: #EEF0F3; color: #3A414A; }
+  .sm-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 12px; }
+  .sm-mini div { border: 1px solid #E3E6EA; border-radius: 6px; padding: 10px 12px; }
+  .sm-mini span { display: block; font-size: 12px; color: #4F5864; }
+  .sm-mini strong { display: block; font-size: 18px; font-weight: 600; margin-top: 2px; }
+  .sm-nota { font-size: 12px; color: #4F5864; margin: 8px 0 0; }
+  .sm-aviso { background: #FFF8E6; border: 1px solid #F0D79A; border-radius: 6px; padding: 12px 14px; }
+  .sm-erro { background: #FDF3F2; border: 1px solid #E8B4AD; border-radius: 6px; padding: 12px 14px; color: #7E2318; }
+  .sm-log { list-style: none; margin: 0; padding: 0; font-size: 12px; }
+  .sm-log li { padding: 3px 0; }
+  .sm-diag summary { cursor: pointer; font-weight: 600; font-size: 13px; min-height: 24px; }
+  .sm-diag textarea { width: 100%; height: 200px; font-family: Consolas, monospace; font-size: 12px; border: 1px solid #C3C9D1; border-radius: 4px; padding: 8px; margin-top: 8px; }
+  .sm-vazio { color: #4F5864; font-size: 13px; }
+  .sm-def { margin: 10px 0 0; display: grid; grid-template-columns: minmax(140px, 200px) minmax(0, 1fr); gap: 6px 14px; font-size: 13px; color: #3A414A; }
+  .sm-def dt { font-weight: 600; }
+  .sm-def dd { margin: 0; }
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'teste-5 (30/10/2026)';
-  var WAF = null, Compass = null;
+  var VERSAO = 'mvp-1 (30/10/2026)';
+  // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
+  // passe ?space=<endereço> no link do Run Your App.
+  var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
+  var LIMITE_LINHAS = 3000;
+
+  var WAF = null;
   var conectado = false;
-  var estado = { spaceUrl: null, platformId: null, ctx: null, csrf: null, usuario: null };
+  var estado = { spaceUrl: null, ctx: null, csrf: null, usuario: null };
   var registro = [];
   var amostra = {};
+  var bruto = null;     // { raiz, membros } da última leitura
+  var dados = null;     // resultado processado
+  var aberto = {};      // nós da árvore expandidos (por índice)
+  var encontrados = [];
+  var cfg = { limite: 15, metaPct: 90, metaData: '' };
 
   var ROTULOS = { IN_WORK: 'Em trabalho', FROZEN: 'Congelado', RELEASED: 'Liberado', PRIVATE: 'Privado', OBSOLETE: 'Obsoleto' };
+  var ORDEM_EST = ['RELEASED', 'FROZEN', 'IN_WORK', 'PRIVATE', 'OBSOLETE'];
+
+  var ICONE_FECHADO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>';
+  var ICONE_ABERTO = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg>';
 
   var TEMPLATE =
-    '<div class="sm-root">' +
-      '<div class="sm-titulo"><h1>Status de Montagens · teste técnico</h1><span class="sm-versao">' + VERSAO + '</span></div>' +
-      '<div class="sm-info" id="sm-info">Conectando à 3DEXPERIENCE...</div>' +
-      '<div id="sm-aviso"></div>' +
-      '<div class="sm-busca">' +
-        '<label for="sm-nome">Nome da montagem<input id="sm-nome" type="text" placeholder="Ex.: ABC-100" /></label>' +
-        '<button type="button" class="sm-btn" id="sm-buscar" disabled>Buscar</button>' +
+    '<div class="sm-root"><div class="sm-app">' +
+      '<div class="sm-topo"><div><h1 style="display:inline">Status de Montagens</h1><span class="sm-selo">' + VERSAO + '</span></div>' +
+        '<span class="sm-conexao" id="sm-conexao">Conectando à 3DEXPERIENCE...</span></div>' +
+      '<div class="sm-barra">' +
+        '<div class="sm-grupo">' +
+          '<label class="sm-campo" for="sm-nome">Montagem<input id="sm-nome" type="text" placeholder="Nome ou título" style="min-width:260px" /></label>' +
+          '<button type="button" class="sm-btn" id="sm-buscar" disabled>Buscar</button>' +
+        '</div>' +
+        '<div class="sm-grupo">' +
+          '<label class="sm-campo" for="sm-limite">Parado após (dias)<input id="sm-limite" type="number" min="1" max="999" style="width:110px" /></label>' +
+          '<label class="sm-campo" for="sm-meta">Meta liberado (%)<input id="sm-meta" type="number" min="1" max="100" style="width:110px" /></label>' +
+          '<label class="sm-campo" for="sm-data">Data da meta<input id="sm-data" type="date" style="width:150px" /></label>' +
+        '</div>' +
+        '<div class="sm-grupo">' +
+          '<span class="sm-lido" id="sm-lido"></span>' +
+          '<button type="button" class="sm-btn2" id="sm-exportar" disabled>Exportar Excel (CSV)</button>' +
+          '<button type="button" class="sm-btn2" id="sm-atualizar" disabled>Atualizar</button>' +
+        '</div>' +
       '</div>' +
-      '<div class="sm-caixa"><h2>Etapas</h2><ul class="sm-log" id="sm-log"></ul></div>' +
-      '<div id="sm-resultado"></div>' +
-      '<div class="sm-caixa sm-diag"><details><summary>Diagnóstico (copie e cole no chat se algo der errado)</summary>' +
-        '<p style="margin:8px 0;font-size:12px;color:#4F5864">Clique dentro da caixa, use Ctrl+A e depois Ctrl+C.</p>' +
-        '<textarea id="sm-diag" readonly></textarea>' +
-      '</details></div>' +
-    '</div>';
+      '<div class="sm-corpo">' +
+        '<div id="sm-aviso"></div>' +
+        '<div id="sm-conteudo"><p class="sm-vazio">Digite o nome da montagem e clique em Buscar.</p></div>' +
+        '<details class="sm-caixa sm-diag"><summary>Como os números são calculados</summary>' +
+          '<dl class="sm-def">' +
+            '<dt>Itens únicos</dt><dd>Cada peça ou submontagem conta uma vez, mesmo que apareça várias vezes na estrutura. A montagem principal não entra na conta.</dd>' +
+            '<dt>Ocorrências</dt><dd>Cada vez que um item aparece na estrutura (o que a árvore mostra).</dd>' +
+            '<dt>Parado</dt><dd>Em trabalho ou privado e sem modificação há pelo menos o número de dias configurado.</dd>' +
+            '<dt>Pai liberado</dt><dd>Item não liberado cujo pai direto já está liberado.</dd>' +
+            '<dt>Pendências por owner</dt><dd>Itens únicos que ainda não estão liberados nem obsoletos, agrupados pelo owner.</dd>' +
+            '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
+          '</dl>' +
+        '</details>' +
+        '<details class="sm-caixa sm-diag"><summary>Diagnóstico técnico</summary>' +
+          '<ul class="sm-log" id="sm-log" style="margin-top:8px"></ul>' +
+          '<textarea id="sm-diag" readonly aria-label="Texto de diagnóstico"></textarea>' +
+        '</details>' +
+      '</div>' +
+    '</div></div>';
 
+  // ---------- utilidades ----------
   function $(id) { return document.getElementById(id); }
-
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
     });
   }
+  function rotulo(s) { return ROTULOS[s] || s || '(sem estado)'; }
+  function classeEst(s) { return ROTULOS[s] ? s : 'OUTRO'; }
+  function textoErro(e) {
+    if (!e) return 'erro desconhecido';
+    if (e.message) return e.message;
+    try { return JSON.stringify(e).slice(0, 500); } catch (x) { return String(e); }
+  }
+  function diasDesde(data) {
+    var t = Date.parse(data);
+    if (isNaN(t)) return null;
+    return Math.floor((Date.now() - t) / 86400000);
+  }
+  function pct(a, b) { return b ? Math.round(a * 100 / b) : 0; }
+  function agora() {
+    var d = new Date();
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return z(d.getHours()) + ':' + z(d.getMinutes()) + ' · ' + z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear();
+  }
+  function lerLocal(chave) { try { return window.localStorage.getItem(chave) || ''; } catch (x) { return ''; } }
+  function gravarLocal(chave, v) { try { window.localStorage.setItem(chave, v); } catch (x) { } }
 
   function anotar(etapa, situacao, detalhe) {
     var existente = null;
@@ -90,35 +183,16 @@
     if (existente) { existente.situacao = situacao; existente.detalhe = detalhe || ''; }
     else registro.push({ etapa: etapa, situacao: situacao, detalhe: detalhe || '' });
     var html = '';
-    registro.forEach(function (r) {
-      var cls = r.situacao === 'OK' ? 'sm-ok' : (r.situacao === 'ERRO' ? 'sm-erro' : 'sm-and');
-      html += '<li><span class="sm-tag ' + cls + '">' + r.situacao + '</span><span><strong>' + esc(r.etapa) + '</strong>' +
-        (r.detalhe ? ' <span class="sm-detalhe">· ' + esc(r.detalhe) + '</span>' : '') + '</span></li>';
-    });
+    registro.forEach(function (r) { html += '<li><strong>' + esc(r.situacao) + '</strong> · ' + esc(r.etapa) + (r.detalhe ? ' · ' + esc(r.detalhe) : '') + '</li>'; });
     if ($('sm-log')) $('sm-log').innerHTML = html;
-    atualizarDiagnostico();
+    if ($('sm-diag')) {
+      $('sm-diag').value = JSON.stringify({ versao: VERSAO, navegador: navigator.userAgent, space: estado.spaceUrl, contexto: estado.ctx, etapas: registro, amostra: amostra }, null, 2);
+    }
   }
 
-  function atualizarDiagnostico() {
-    if (!$('sm-diag')) return;
-    var d = {
-      versao: VERSAO,
-      navegador: navigator.userAgent,
-      plataforma: estado.platformId,
-      space: estado.spaceUrl,
-      contexto: estado.ctx,
-      etapas: registro,
-      amostra: amostra
-    };
-    $('sm-diag').value = JSON.stringify(d, null, 2);
-  }
-
-  function mostrarAviso(html) { if ($('sm-aviso')) $('sm-aviso').innerHTML = html ? '<div class="sm-aviso">' + html + '</div>' : ''; }
-
-  function textoErro(e) {
-    if (!e) return 'erro desconhecido';
-    if (e.message) return e.message;
-    try { return JSON.stringify(e).slice(0, 500); } catch (x) { return String(e); }
+  function mostrarAviso(html, tipo) {
+    if (!$('sm-aviso')) return;
+    $('sm-aviso').innerHTML = html ? '<div class="' + (tipo === 'erro' ? 'sm-erro' : 'sm-aviso') + '">' + html + '</div>' : '';
   }
 
   function requisicao(metodo, url, corpo) {
@@ -128,15 +202,8 @@
       if (corpo) headers['Content-Type'] = 'application/json';
       if (metodo !== 'GET' && estado.csrf) headers[estado.csrf.name] = estado.csrf.value;
       WAF.authenticatedRequest(url, {
-        method: metodo,
-        headers: headers,
-        data: corpo ? JSON.stringify(corpo) : undefined,
-        type: 'json',
-        timeout: 120000,
-        onComplete: function (r) {
-          if (typeof r === 'string') { try { r = JSON.parse(r); } catch (x) { } }
-          resolve(r);
-        },
+        method: metodo, headers: headers, data: corpo ? JSON.stringify(corpo) : undefined, type: 'json', timeout: 180000,
+        onComplete: function (r) { if (typeof r === 'string') { try { r = JSON.parse(r); } catch (x) { } } resolve(r); },
         onFailure: function (err, resp) {
           var extra = '';
           if (resp) { try { extra = ' | resposta: ' + (typeof resp === 'string' ? resp : JSON.stringify(resp)).slice(0, 500); } catch (x) { } }
@@ -146,7 +213,6 @@
       });
     });
   }
-
   function comTempo(promessa, ms, nome) {
     return new Promise(function (resolve, reject) {
       var t = setTimeout(function () { reject(new Error(nome + ': sem resposta em ' + (ms / 1000) + 's')); }, ms);
@@ -154,141 +220,25 @@
     });
   }
 
-  function lerPlatformId() {
-    var pid = null;
-    try { pid = widget.getValue('x3dPlatformId'); } catch (x) { }
-    amostra.x3dPlatformId = pid || null;
-    return pid;
-  }
-
-  // Tentativa A: getServiceUrl (forma mais comum nos widgets)
-  function tentativaA(pid) {
-    return new Promise(function (resolve, reject) {
-      var opcoes = {
-        serviceName: '3DSpace',
-        onComplete: function (r) {
-          amostra.tentativaA = r;
-          var url = null, plat = pid;
-          if (typeof r === 'string') url = r;
-          else if (Array.isArray(r)) {
-            var achado = null;
-            r.forEach(function (x) { if (x && pid && x.platformId === pid) achado = x; });
-            achado = achado || r[0];
-            if (achado) { url = achado.url; plat = achado.platformId; }
-          } else if (r && r.url) { url = r.url; plat = r.platformId || pid; }
-          if (url) resolve({ '3DSpace': url, platformId: plat, displayName: plat });
-          else reject(new Error('getServiceUrl respondeu sem endereço'));
-        },
-        onFailure: function (e) { reject(new Error('getServiceUrl falhou: ' + textoErro(e))); }
-      };
-      if (pid) opcoes.platformId = pid;
-      Compass.getServiceUrl(opcoes);
-    });
-  }
-
-  // Tentativa B: getPlatformServices
-  function tentativaB(pid) {
-    return new Promise(function (resolve, reject) {
-      var opcoes = {
-        onComplete: function (dados) {
-          var lista = Array.isArray(dados) ? dados : [dados];
-          amostra.tentativaB = lista.map(function (p) { return p ? { platformId: p.platformId, nome: p.displayName, space: p['3DSpace'] } : null; });
-          var escolhida = null;
-          lista.forEach(function (p) { if (p && pid && p.platformId === pid) escolhida = p; });
-          escolhida = escolhida || lista[0];
-          if (escolhida && escolhida['3DSpace']) resolve(escolhida);
-          else reject(new Error('getPlatformServices sem 3DSpace'));
-        },
-        onFailure: function (e) { reject(new Error('getPlatformServices falhou: ' + textoErro(e))); }
-      };
-      if (pid) opcoes.platformId = pid;
-      Compass.getPlatformServices(opcoes);
-    });
-  }
-
-  function obterSpace() {
-    var pid = lerPlatformId();
-    var falhas = [];
-    function proxima(lista) {
-      if (!lista.length) return Promise.reject(new Error('nenhum método automático funcionou: ' + falhas.join(' | ')));
-      var t = lista[0];
-      anotar('1. Serviços da plataforma', '...', 'tentando ' + t.nome + (pid ? ' (plataforma ' + pid + ')' : ' (sem id de plataforma)'));
-      return comTempo(t.fn(), 12000, t.nome).catch(function (e) {
-        falhas.push(textoErro(e));
-        return proxima(lista.slice(1));
-      });
-    }
-    return proxima([
-      { nome: 'método A', fn: function () { return tentativaA(pid); } },
-      { nome: 'método B', fn: function () { return tentativaB(pid); } }
-    ]);
-  }
-
-  function pedirSpaceManual() {
-    var html =
-      '<strong>Não consegui descobrir o endereço do 3DSpace sozinho.</strong> Cole abaixo o endereço do 3DSpace do seu tenant ' +
-      '(algo como <code>https://r1132...-space.3dexperience.3ds.com/enovia</code>) e clique em Usar.' +
-      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
-      '<label for="sm-space" style="position:absolute;left:-9999px">Endereço do 3DSpace</label>' +
-      '<input id="sm-space" type="text" style="height:34px;min-width:360px;padding:0 8px;border:1px solid #C3C9D1;border-radius:4px" />' +
-      '<button type="button" class="sm-btn2" id="sm-usar">Usar</button></div>';
-    mostrarAviso(html);
-    $('sm-usar').addEventListener('click', function () {
-      var v = ($('sm-space').value || '').trim().replace(/\/+$/, '');
-      if (!v) return;
-      mostrarAviso('');
-      registro = [];
-      continuarConexao({ '3DSpace': v, platformId: amostra.x3dPlatformId, displayName: 'manual' });
-    });
-  }
-
-  function lerSpaceSalvo() {
-    try { return window.localStorage.getItem('sm-space') || ''; } catch (x) { return ''; }
-  }
-  function salvarSpace(v) {
-    try { window.localStorage.setItem('sm-space', v); } catch (x) { }
-  }
-
-  // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
-  // troque aqui ou passe ?space=<endereço> no link do Run Your App.
-  var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
-
+  // ---------- conexão ----------
   function lerSpaceDoLink() {
-    try {
-      var m = /[?&]space=([^&#]+)/.exec(window.location.search || '');
-      return m ? decodeURIComponent(m[1]) : '';
-    } catch (x) { return ''; }
+    try { var m = /[?&]space=([^&#]+)/.exec(window.location.search || ''); return m ? decodeURIComponent(m[1]) : ''; } catch (x) { return ''; }
   }
 
   function conectar() {
-    lerPlatformId();
     var origem = '', endereco = '';
     if ((endereco = lerSpaceDoLink())) origem = 'do link';
-    else if ((endereco = lerSpaceSalvo())) origem = 'salvo';
-    else if ((endereco = SPACE_PADRAO)) origem = 'padrão';
-    if (endereco) {
-      anotar('1. Serviços da plataforma', '...', 'usando endereço ' + origem);
-      continuarConexao({ '3DSpace': endereco, platformId: amostra.x3dPlatformId, displayName: origem });
-      return;
-    }
-    anotar('1. Serviços da plataforma', '...');
-    obterSpace().then(function (p) {
-      continuarConexao(p);
-    }).catch(function (e) {
-      anotar('1. Serviços da plataforma', 'ERRO', textoErro(e));
-      $('sm-info').textContent = 'Não foi possível descobrir o 3DSpace automaticamente.';
-      pedirSpaceManual();
-    });
+    else if ((endereco = lerLocal('sm-space'))) origem = 'salvo';
+    else { endereco = SPACE_PADRAO; origem = 'padrão'; }
+    anotar('Endereço do 3DSpace', 'OK', origem + ' · ' + endereco);
+    continuarConexao(endereco);
   }
 
-  function continuarConexao(p) {
-    estado.spaceUrl = String(p['3DSpace']).replace(/\/+$/, '');
-    estado.platformId = p.platformId;
-    anotar('1. Serviços da plataforma', 'OK', (p.displayName || p.platformId || '') + ' · ' + estado.spaceUrl);
-    anotar('2. Usuário e contexto de segurança', '...');
+  function continuarConexao(endereco) {
+    estado.spaceUrl = String(endereco).replace(/\/+$/, '');
+    anotar('Usuário e contexto', '...');
     comTempo(requisicao('GET', estado.spaceUrl + '/resources/modeler/pno/person?current=true&select=preferredcredentials&select=collabspaces'), 30000, 'dados do usuário')
     .then(function (pessoa) {
-      amostra.pessoa = { name: pessoa && pessoa.name, preferredcredentials: pessoa && pessoa.preferredcredentials };
       var pc = pessoa && pessoa.preferredcredentials;
       if (pc && pc.role && pc.organization && pc.collabspace) {
         estado.ctx = 'ctx::' + pc.role.name + '.' + pc.organization.name + '.' + pc.collabspace.name;
@@ -296,188 +246,489 @@
         var cs = pessoa.collabspaces[0], c = cs.couples[0];
         estado.ctx = 'ctx::' + c.role.name + '.' + c.organization.name + '.' + cs.name;
       } else {
-        throw new Error('não encontrei credenciais do usuário na resposta');
+        throw new Error('não encontrei credenciais do usuário');
       }
       estado.usuario = pessoa.name || '';
-      anotar('2. Usuário e contexto de segurança', 'OK', estado.usuario + ' · ' + estado.ctx);
-      anotar('3. Token de segurança (CSRF)', '...');
+      anotar('Usuário e contexto', 'OK', estado.usuario + ' · ' + estado.ctx);
+      anotar('Token CSRF', '...');
       return comTempo(requisicao('GET', estado.spaceUrl + '/resources/v1/application/CSRF'), 30000, 'token CSRF');
     }).then(function (r) {
       if (!r || !r.csrf || !r.csrf.name) throw new Error('resposta sem token');
       estado.csrf = r.csrf;
       conectado = true;
-      salvarSpace(estado.spaceUrl);
-      anotar('3. Token de segurança (CSRF)', 'OK');
-      $('sm-info').textContent = 'Conectado como ' + estado.usuario + ' · ' + estado.ctx.replace('ctx::', '');
+      gravarLocal('sm-space', estado.spaceUrl);
+      anotar('Token CSRF', 'OK');
+      $('sm-conexao').textContent = estado.usuario + ' · ' + estado.ctx.replace('ctx::', '');
       $('sm-buscar').disabled = false;
-      $('sm-nome').focus();
+      mostrarAviso('');
+      var ultima = lerLocal('sm-ultima');
+      if (ultima && !$('sm-nome').value) $('sm-nome').value = ultima;
     }).catch(function (e) {
-      var pendente = registro.filter(function (r) { return r.situacao === '...'; })[0];
-      anotar(pendente ? pendente.etapa : 'Conexão', 'ERRO', textoErro(e));
-      $('sm-info').textContent = 'Não foi possível conectar. Veja as etapas abaixo.';
-      salvarSpace('');
-      pedirSpaceManual();
+      anotar('Conexão', 'ERRO', textoErro(e));
+      gravarLocal('sm-space', '');
+      $('sm-conexao').textContent = 'Sem conexão';
+      pedirSpaceManual(textoErro(e));
     });
   }
 
-  function diasDesde(data) {
-    var t = Date.parse(data);
-    if (isNaN(t)) return '';
-    return Math.floor((Date.now() - t) / 86400000);
+  function pedirSpaceManual(motivo) {
+    mostrarAviso(
+      '<strong>Não consegui conectar ao 3DSpace.</strong> ' + esc(motivo) +
+      '<div style="margin-top:8px">Cole o endereço do 3DSpace do seu tenant (algo como <code>https://xxxx-us1-space.3dexperience.3ds.com/enovia</code>) e clique em Usar.</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">' +
+      '<input id="sm-space" type="text" aria-label="Endereço do 3DSpace" style="height:36px;min-width:360px;padding:0 8px;border:1px solid #C3C9D1;border-radius:4px" />' +
+      '<button type="button" class="sm-btn2" id="sm-usar">Usar</button></div>');
+    $('sm-usar').addEventListener('click', function () {
+      var v = ($('sm-space').value || '').trim();
+      if (!v) return;
+      mostrarAviso('');
+      continuarConexao(v);
+    });
   }
 
-  var ultimosEncontrados = [];
-
+  // ---------- busca e leitura ----------
   function buscar() {
     var termo = ($('sm-nome').value || '').trim();
     if (!termo || !conectado) return;
+    gravarLocal('sm-ultima', termo);
     $('sm-buscar').disabled = true;
-    $('sm-resultado').innerHTML = '';
-    registro = registro.filter(function (r) { return /^[123]\./.test(r.etapa); });
-    anotar('4. Busca da montagem', '...');
-    var url = estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/search?$searchStr=' + encodeURIComponent(termo) + '&$top=20';
+    mostrarAviso('');
+    $('sm-conteudo').innerHTML = '<p class="sm-vazio">Buscando "' + esc(termo) + '"...</p>';
+    anotar('Busca', '...', termo);
+    var url = estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/search?$searchStr=' + encodeURIComponent(termo) + '&$top=30';
     requisicao('GET', url).then(function (r) {
       var membros = (r && r.member) || [];
-      amostra.busca = { totalItems: r && r.totalItems, primeiros: membros.slice(0, 3) };
+      amostra.busca = { total: r && r.totalItems, primeiros: membros.slice(0, 3) };
       if (!membros.length) throw new Error('nenhum item encontrado com "' + termo + '"');
       var exato = null;
       membros.forEach(function (m) { if (!exato && (m.name === termo || m.title === termo)) exato = m; });
-      if (exato || membros.length === 1) {
-        expandir(exato || membros[0], membros.length);
-        return;
-      }
-      // Vários resultados (ex.: configurações do SOLIDWORKS): o usuário escolhe.
-      anotar('4. Busca da montagem', 'OK', membros.length + ' encontrados; escolha qual expandir');
+      anotar('Busca', 'OK', membros.length + ' encontrado(s)');
+      if (exato || membros.length === 1) { ler(exato || membros[0]); return; }
       mostrarEscolha(membros);
       $('sm-buscar').disabled = false;
     }).catch(function (e) {
-      anotar('4. Busca da montagem', 'ERRO', textoErro(e));
+      anotar('Busca', 'ERRO', textoErro(e));
+      $('sm-conteudo').innerHTML = '';
+      mostrarAviso(esc(textoErro(e)), 'erro');
       $('sm-buscar').disabled = false;
     });
   }
 
   function mostrarEscolha(membros) {
-    ultimosEncontrados = membros;
-    var html = '<div class="sm-caixa"><h2>Encontrei mais de um item. Qual montagem você quer ver?</h2>' +
+    encontrados = membros;
+    var html = '<div class="sm-caixa"><h3>Encontrei ' + membros.length + ' itens. Qual montagem você quer ver?</h3>' +
       '<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-start">';
     membros.forEach(function (m, i) {
       html += '<button type="button" class="sm-btn2 sm-escolha" data-i="' + i + '" style="text-align:left;height:auto;min-height:36px;padding:6px 12px">' +
-        '<strong>' + esc(m.title) + '</strong> · ' + esc(m.name) + ' · rev. ' + esc(m.revision) + ' · ' + esc(ROTULOS[m.state] || m.state) + '</button>';
+        '<strong>' + esc(m.title) + '</strong> · <span class="sm-mono">' + esc(m.name) + '</span> · rev. ' + esc(m.revision) +
+        ' · <span class="sm-est e-' + esc(m.state) + '">' + esc(rotulo(m.state)) + '</span></button>';
     });
     html += '</div></div>';
-    $('sm-resultado').innerHTML = html;
-    var botoes = document.querySelectorAll('.sm-escolha');
-    for (var b = 0; b < botoes.length; b++) {
-      botoes[b].addEventListener('click', function (ev) {
-        var i = Number(ev.currentTarget.getAttribute('data-i'));
-        $('sm-resultado').innerHTML = '';
-        expandir(ultimosEncontrados[i], ultimosEncontrados.length);
-      });
-    }
+    $('sm-conteudo').innerHTML = html;
   }
 
-  function expandir(raiz, quantos) {
+  function ler(raiz) {
     $('sm-buscar').disabled = true;
-    anotar('4. Busca da montagem', 'OK', quantos + ' encontrado(s); usando ' + (raiz.name || '') + ' "' + (raiz.title || '') + '" rev. ' + (raiz.revision || '?'));
-    anotar('5. Expansão da estrutura', '...');
+    $('sm-atualizar').disabled = true;
+    $('sm-conteudo').innerHTML = '<p class="sm-vazio">Lendo a estrutura de <strong>' + esc(raiz.title || raiz.name) + '</strong>. Em montagens grandes isso pode levar alguns segundos...</p>';
+    anotar('Expansão', '...', (raiz.name || '') + ' "' + (raiz.title || '') + '"');
     requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raiz.id) + '/expand', { expandDepth: -1, withPath: true })
     .then(function (r) {
       var membros = (r && r.member) || [];
-      amostra.expansao = { total: membros.length, primeiros: membros.slice(0, 6) };
-      var refs = {}, caminhos = [], nInst = 0, porTipo = {}, exInst = [];
-      membros.forEach(function (m) {
-        var p = m.Path || m.path;
-        var tipo = Array.isArray(p) ? '(Path)' : (m.type || '(sem tipo)');
-        porTipo[tipo] = (porTipo[tipo] || 0) + 1;
-        if (Array.isArray(p)) { caminhos.push(p); return; }
-        if (/instance/i.test(m.type || '')) { nInst++; if (exInst.length < 2) exInst.push(m); return; }
-        if (m.id) refs[m.id] = m;
-      });
-      amostra.expansao.porTipo = porTipo;
-      amostra.expansao.exemplosCaminho = caminhos.slice(0, 4);
-      amostra.expansao.exemplosInstancia = exInst;
-      var linhas = [];
-      if (caminhos.length) {
-        // A 3DX devolve só os caminhos até as folhas. As submontagens (ex.: Sub1)
-        // aparecem apenas no meio desses caminhos, então geramos também os
-        // caminhos intermediários, sem repetir, mantendo a ordem da 3DX.
-        var vistos = {};
-        caminhos.forEach(function (p) {
-          for (var L = 3; L <= p.length; L += 2) {
-            var q = p.slice(0, L), chave = q.join('/');
-            if (vistos[chave]) continue;
-            vistos[chave] = true;
-            var ultimo = q[q.length - 1];
-            if (ultimo === raiz.id || !refs[ultimo]) continue;
-            linhas.push({ nivel: (q.length - 1) / 2, item: refs[ultimo] });
-          }
-        });
-      } else {
-        Object.keys(refs).forEach(function (id) { if (id !== raiz.id) linhas.push({ nivel: '-', item: refs[id] }); });
-      }
-      var unicos = Object.keys(refs).filter(function (id) { return id !== raiz.id; });
-      anotar('5. Expansão da estrutura', 'OK', unicos.length + ' itens únicos, ' + linhas.length + ' ocorrências, ' + caminhos.length + ' caminhos, ' + nInst + ' instâncias');
-      desenhar(raiz, unicos.map(function (id) { return refs[id]; }), linhas);
+      bruto = { raiz: raiz, membros: membros, lido: agora() };
+      aberto = {};
+      processar();
+      anotar('Expansão', 'OK', dados.unicos.length + ' itens únicos, ' + dados.nos.length + ' ocorrências');
+      desenhar();
     }).catch(function (e) {
-      var pendente = registro.filter(function (r) { return r.situacao === '...'; })[0];
-      anotar(pendente ? pendente.etapa : 'Busca', 'ERRO', textoErro(e));
-    }).then(function () { $('sm-buscar').disabled = false; });
+      anotar('Expansão', 'ERRO', textoErro(e));
+      $('sm-conteudo').innerHTML = '';
+      mostrarAviso('Não consegui ler a estrutura: ' + esc(textoErro(e)), 'erro');
+    }).then(function () {
+      $('sm-buscar').disabled = false;
+      $('sm-atualizar').disabled = !bruto;
+      $('sm-exportar').disabled = !dados;
+    });
   }
 
-  function desenhar(raiz, unicos, linhas) {
+  // ---------- processamento ----------
+  function processar() {
+    var raiz = bruto.raiz, membros = bruto.membros;
+    var refs = {}, caminhos = [], porTipo = {};
+    membros.forEach(function (m) {
+      var p = m.Path || m.path;
+      var tipo = Array.isArray(p) ? '(Path)' : (m.type || '?');
+      porTipo[tipo] = (porTipo[tipo] || 0) + 1;
+      if (Array.isArray(p)) { caminhos.push(p); return; }
+      if (/instance/i.test(m.type || '')) return;
+      if (m.id) refs[m.id] = m;
+    });
+    amostra.expansao = { total: membros.length, porTipo: porTipo };
+    if (!refs[raiz.id]) refs[raiz.id] = raiz;
+
+    var limite = cfg.limite;
+    var raizNo = { idx: 0, chave: raiz.id, item: refs[raiz.id], nivel: 0, filhos: [], pai: null };
+    var porChave = {}; porChave[raiz.id] = raizNo;
+    var nos = [];
+
+    function novoNo(chave, item, nivel, pai) {
+      var no = { idx: nos.length + 1, chave: chave, item: item, nivel: nivel, filhos: [], pai: pai };
+      porChave[chave] = no; pai.filhos.push(no); nos.push(no);
+      return no;
+    }
+
+    if (caminhos.length) {
+      // A 3DX devolve os caminhos até as folhas; as submontagens aparecem no meio.
+      caminhos.forEach(function (p) {
+        for (var L = 3; L <= p.length; L += 2) {
+          var chave = p.slice(0, L).join('/');
+          if (porChave[chave]) continue;
+          var ref = refs[p[L - 1]];
+          var pai = porChave[p.slice(0, L - 2).join('/')];
+          if (!ref || !pai) continue;
+          novoNo(chave, ref, (L - 1) / 2, pai);
+        }
+      });
+    } else {
+      Object.keys(refs).forEach(function (id) { if (id !== raiz.id) novoNo(raiz.id + '/' + id, refs[id], 1, raizNo); });
+    }
+
+    // sinais por ocorrência e por item único
+    var unicosMapa = {};
+    nos.forEach(function (no) {
+      var s = no.item.state;
+      no.dias = diasDesde(no.item.modified);
+      no.parado = (s === 'IN_WORK' || s === 'PRIVATE') && no.dias !== null && no.dias >= limite;
+      no.paiLiberado = no.pai && no.pai.item && no.pai.item.state === 'RELEASED' && s !== 'RELEASED' && s !== 'OBSOLETE';
+      var u = unicosMapa[no.item.id];
+      if (!u) { u = unicosMapa[no.item.id] = { item: no.item, dias: no.dias, parado: false, paiLiberado: false, ocorrencias: 0, pais: {} }; }
+      u.ocorrencias++;
+      if (no.parado) u.parado = true;
+      if (no.paiLiberado) { u.paiLiberado = true; u.pais[no.pai.item.title || no.pai.item.name] = true; }
+    });
+    // pais com filhos pendentes
+    nos.forEach(function (no) {
+      no.temFilhoPendente = no.item.state === 'RELEASED' && no.filhos.some(function (f) { return f.paiLiberado; });
+    });
+    var unicos = Object.keys(unicosMapa).filter(function (id) { return id !== raiz.id; }).map(function (id) { return unicosMapa[id]; });
+
     var porEstado = {};
-    unicos.forEach(function (m) { var s = m.state || '(sem estado)'; porEstado[s] = (porEstado[s] || 0) + 1; });
-    var total = unicos.length || 1;
-    var cards = '<div class="sm-card"><span>Itens únicos</span><strong>' + unicos.length + '</strong></div>';
-    Object.keys(porEstado).sort().forEach(function (s) {
-      cards += '<div class="sm-card"><span>' + esc(ROTULOS[s] || s) + '</span><strong>' + porEstado[s] +
-        ' <small style="font-size:13px;color:#4F5864;font-weight:500">' + Math.round(porEstado[s] * 100 / total) + '%</small></strong></div>';
+    unicos.forEach(function (u) { var s = u.item.state || '?'; porEstado[s] = (porEstado[s] || 0) + 1; });
+
+    // submontagens do 1º nível
+    var subs = raizNo.filhos.filter(function (n) { return n.filhos.length; }).map(function (n) {
+      var vistos = {}, cont = {}, total = 0, parados = 0, pai = 0;
+      (function percorrer(x) {
+        x.filhos.forEach(function (f) {
+          if (!vistos[f.item.id]) {
+            vistos[f.item.id] = true; total++;
+            var s = f.item.state || '?'; cont[s] = (cont[s] || 0) + 1;
+            if (unicosMapa[f.item.id].parado) parados++;
+            if (unicosMapa[f.item.id].paiLiberado) pai++;
+          }
+          percorrer(f);
+        });
+      })(n);
+      return { no: n, total: total, cont: cont, parados: parados, pai: pai };
     });
-    var corpo = '';
-    linhas.slice(0, 500).forEach(function (l) {
-      var m = l.item, s = m.state || '';
-      var recuo = (typeof l.nivel === 'number' && l.nivel > 1) ? (l.nivel - 1) * 16 : 0;
-      corpo += '<tr><td>' + esc(l.nivel) + '</td><td style="padding-left:' + (6 + recuo) + 'px">' + esc(m.name) + '</td><td>' + esc(m.title) + '</td><td>' + esc(m.revision) +
-        '</td><td><span class="sm-est sm-est-' + esc(s) + '">' + esc(ROTULOS[s] || s) + '</span></td><td>' + esc(m.owner) +
-        '</td><td>' + esc((m.modified || '').slice(0, 10)) + '</td><td style="text-align:right">' + esc(diasDesde(m.modified)) + '</td></tr>';
+
+    // pendências por owner
+    var owners = {};
+    unicos.forEach(function (u) {
+      var s = u.item.state;
+      if (s === 'RELEASED' || s === 'OBSOLETE') return;
+      var o = u.item.owner || '(sem owner)';
+      if (!owners[o]) owners[o] = { owner: o, total: 0, parados: 0 };
+      owners[o].total++; if (u.parado) owners[o].parados++;
     });
-    $('sm-resultado').innerHTML =
-      '<div class="sm-caixa"><h2>' + esc(raiz.name) + ' · ' + esc(raiz.title) + ' · rev. ' + esc(raiz.revision) +
-        ' · <span class="sm-est sm-est-' + esc(raiz.state) + '">' + esc(ROTULOS[raiz.state] || raiz.state) + '</span></h2>' +
-        '<div class="sm-cards">' + cards + '</div>' +
-        '<div class="sm-tabela"><table><thead><tr><th>Nível</th><th>Nome</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Owner</th><th>Modificado</th><th style="text-align:right">Dias</th></tr></thead><tbody>' +
-        corpo + '</tbody></table></div>' +
-        (linhas.length > 500 ? '<p class="sm-detalhe">Mostrando 500 de ' + linhas.length + ' linhas.</p>' : '') +
-      '</div>';
+    var listaOwners = Object.keys(owners).map(function (k) { return owners[k]; }).sort(function (a, b) { return b.total - a.total; });
+
+    // itens que pedem ação
+    var acao = unicos.filter(function (u) { return u.parado || u.paiLiberado; }).sort(function (a, b) {
+      if (a.paiLiberado !== b.paiLiberado) return a.paiLiberado ? -1 : 1;
+      return (b.dias || 0) - (a.dias || 0);
+    });
+
+    dados = {
+      raiz: raizNo, nos: nos, unicos: unicos, porEstado: porEstado, subs: subs, owners: listaOwners, acao: acao,
+      parados: unicos.filter(function (u) { return u.parado; }).length,
+      paiLib: unicos.filter(function (u) { return u.paiLiberado; }).length,
+      paisComPendencia: nos.filter(function (n) { return n.temFilhoPendente; }).length + (raizNo.item.state === 'RELEASED' && raizNo.filhos.some(function (f) { return f.paiLiberado; }) ? 1 : 0)
+    };
   }
 
+  // ---------- desenho ----------
+  function barraEstados(cont, total) {
+    var html = '<div class="sm-barra-est" role="img" aria-label="' + esc(ORDEM_EST.concat(Object.keys(cont)).filter(function (s, i, a) { return cont[s] && a.indexOf(s) === i; }).map(function (s) { return cont[s] + ' ' + rotulo(s).toLowerCase(); }).join(', ')) + '">';
+    var ordem = ORDEM_EST.concat(Object.keys(cont).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; }));
+    ordem.forEach(function (s) { if (cont[s]) html += '<div class="c-' + classeEst(s) + '" style="width:' + (cont[s] * 100 / (total || 1)) + '%"></div>'; });
+    return html + '</div>';
+  }
+
+  function blocoPrazo(total, lib) {
+    var meta = cfg.metaPct, atual = pct(lib, total);
+    var alvo = Math.ceil(meta * total / 100);
+    var faltam = Math.max(0, alvo - lib);
+    var status, cls, frase;
+    var dias = null;
+    if (cfg.metaData) {
+      var t = Date.parse(cfg.metaData + 'T23:59:59');
+      if (!isNaN(t)) dias = Math.ceil((t - Date.now()) / 86400000);
+    }
+    if (faltam === 0) { status = 'Meta atingida'; cls = 's-ok'; frase = 'A montagem já tem ' + atual + '% dos itens liberados, acima da meta de ' + meta + '%.'; }
+    else if (dias === null) { status = 'Sem data de meta'; cls = 's-neutro'; frase = 'Faltam ' + faltam + ' itens para chegar a ' + meta + '% liberado. Informe a data da meta para ver o ritmo necessário.'; }
+    else if (dias < 0) { status = 'Prazo vencido'; cls = 's-vencido'; frase = 'A data da meta passou há ' + (-dias) + ' dia(s) e ainda faltam ' + faltam + ' itens para ' + meta + '% liberado.'; }
+    else {
+      var semanas = Math.max(dias / 7, 1 / 7);
+      var ritmo = Math.ceil(faltam / semanas);
+      status = 'Faltam ' + faltam + ' itens'; cls = 's-atencao';
+      frase = 'Para chegar a ' + meta + '% liberado em ' + dias + ' dia(s), é preciso liberar cerca de ' + ritmo + ' itens por semana.';
+    }
+    return '<div class="sm-caixa"><h2 class="sm-secao-t">Estou no prazo?</h2>' +
+      '<span class="sm-status ' + cls + '">' + esc(status) + '</span>' +
+      '<p style="margin:10px 0 0;font-size:16px;line-height:1.4">' + esc(frase) + '</p>' +
+      '<div class="sm-mini">' +
+        '<div><span>Liberado hoje</span><strong>' + atual + '% · ' + lib + ' de ' + total + '</strong></div>' +
+        '<div><span>Meta</span><strong>' + meta + '%' + (cfg.metaData ? ' até ' + cfg.metaData.split('-').reverse().join('/') : '') + '</strong></div>' +
+        '<div><span>Itens que faltam</span><strong>' + faltam + '</strong></div>' +
+        '<div><span>Dias até a meta</span><strong>' + (dias === null ? '—' : Math.max(dias, 0)) + '</strong></div>' +
+      '</div>' +
+      '<p class="sm-nota">A previsão pelo ritmo real e a curva semanal entram na fase 2, com o histórico.</p></div>';
+  }
+
+  function desenhar() {
+    if (!dados) return;
+    var d = dados, total = d.unicos.length, r = d.raiz.item;
+    var lib = d.porEstado.RELEASED || 0;
+    $('sm-lido').textContent = 'Lido da 3DX às ' + bruto.lido;
+
+    var html = '';
+    // cabeçalho da montagem
+    html += '<div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px">' +
+      '<h2 style="margin:0;font-size:18px;font-weight:600">' + esc(r.title || r.name) + '</h2>' +
+      '<span class="sm-mono">' + esc(r.name) + '</span><span>rev. ' + esc(r.revision) + '</span>' +
+      '<span class="sm-est e-' + esc(r.state) + '">' + esc(rotulo(r.state)) + '</span>' +
+      '<span style="color:#4F5864;font-size:13px">owner ' + esc(r.owner) + '</span></div>';
+
+    // indicadores
+    html += '<div class="sm-cards">';
+    html += '<div class="sm-card"><span class="r">Itens únicos</span><span class="v">' + total + '</span><span class="d">' + d.nos.length + ' ocorrências na estrutura</span></div>';
+    ORDEM_EST.concat(Object.keys(d.porEstado).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; })).forEach(function (s) {
+      if (!d.porEstado[s] && s !== 'RELEASED' && s !== 'IN_WORK') return;
+      var n = d.porEstado[s] || 0;
+      html += '<div class="sm-card"><span class="r">' + esc(rotulo(s)) + '</span><span class="v">' + n + ' <small>' + pct(n, total) + '%</small></span></div>';
+    });
+    var atencao = d.acao.length;
+    html += '<div class="sm-card' + (atencao ? ' alerta' : '') + '"><span class="r">Pedem ação</span><span class="v">' + atencao + '</span>' +
+      '<span class="d">' + d.parados + ' parado(s) · ' + d.paiLib + ' com pai liberado</span></div>';
+    html += '</div>';
+    html += '<div>' + barraEstados(d.porEstado, total) + '<div class="sm-legenda">' +
+      ORDEM_EST.concat(Object.keys(d.porEstado).filter(function (s) { return ORDEM_EST.indexOf(s) < 0; })).filter(function (s) { return d.porEstado[s]; }).map(function (s) {
+        return '<span><span class="sm-q c-' + classeEst(s) + '"></span>' + esc(rotulo(s)) + ' ' + d.porEstado[s] + '</span>';
+      }).join('') + '</div></div>';
+
+    // prazo + pendências por owner
+    html += '<div class="sm-linha"><div style="flex:1 1 420px;min-width:0">' + blocoPrazo(total, lib) + '</div>';
+    html += '<div class="sm-caixa" style="flex:1 1 360px;min-width:0"><h2 class="sm-secao-t">Pendências por owner</h2>';
+    if (!d.owners.length) html += '<p class="sm-vazio">Nenhuma pendência: todos os itens estão liberados.</p>';
+    else {
+      var maior = d.owners[0].total || 1;
+      html += '<div class="sm-owner-g">';
+      d.owners.slice(0, 12).forEach(function (o) {
+        html += '<span title="' + esc(o.owner) + '" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(o.owner) + '</span>' +
+          '<div class="sm-owner-b" role="img" aria-label="' + o.total + ' pendências"><div style="width:' + (o.total * 100 / maior) + '%"></div></div>' +
+          '<span class="num"><strong>' + o.total + '</strong></span>';
+      });
+      html += '</div><p class="sm-nota">Itens únicos ainda não liberados.' + (d.owners.length > 12 ? ' Mostrando 12 de ' + d.owners.length + ' owners.' : '') + '</p>';
+    }
+    html += '</div></div>';
+
+    // submontagens
+    html += '<div class="sm-caixa"><h2 class="sm-secao-t">Maturidade por submontagem (1º nível)</h2>';
+    if (!d.subs.length) html += '<p class="sm-vazio">Esta montagem não tem submontagens no 1º nível.</p>';
+    else {
+      html += '<div class="sm-tabela"><table style="min-width:640px"><thead><tr><th>Submontagem</th><th>Estado</th><th class="num">Itens</th><th style="width:34%">Distribuição</th><th class="num">Liberado</th><th>Alertas</th></tr></thead><tbody>';
+      d.subs.forEach(function (s) {
+        var it = s.no.item, l = s.cont.RELEASED || 0;
+        var alertas = '';
+        if (s.no.temFilhoPendente) alertas += '<span class="sm-tag t-pai">liberada com filho pendente</span> ';
+        if (s.parados) alertas += '<span class="sm-tag t-parado">' + s.parados + ' parado(s)</span>';
+        html += '<tr' + (s.no.temFilhoPendente ? ' class="marcada"' : '') + '><td><strong>' + esc(it.title || it.name) + '</strong> <span class="sm-mono">' + esc(it.name) + '</span></td>' +
+          '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
+          '<td class="num">' + s.total + '</td><td>' + barraEstados(s.cont, s.total) + '</td>' +
+          '<td class="num">' + pct(l, s.total) + '%</td><td>' + (alertas || '<span class="sm-vazio">—</span>') + '</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+    html += '</div>';
+
+    // itens que pedem ação
+    html += '<div class="sm-caixa"><h2 class="sm-secao-t">Itens que pedem ação</h2>';
+    if (!d.acao.length) html += '<p class="sm-vazio">Nenhum item parado há ' + cfg.limite + ' dias ou mais e nenhum item pendente sob pai liberado.</p>';
+    else {
+      html += '<div class="sm-tabela"><table style="min-width:820px"><thead><tr><th>Título</th><th>Item</th><th>Rev.</th><th>Estado</th><th>Owner</th><th>Por que está aqui</th><th class="num">Sem alteração</th></tr></thead><tbody>';
+      d.acao.slice(0, 200).forEach(function (u) {
+        var it = u.item, motivos = [];
+        if (u.paiLiberado) motivos.push('<span class="sm-tag t-pai">pai liberado: ' + esc(Object.keys(u.pais).join(', ')) + '</span>');
+        if (u.parado) motivos.push('<span class="sm-tag t-parado">parado</span>');
+        html += '<tr><td>' + esc(it.title) + '</td><td class="sm-mono">' + esc(it.name) + '</td><td>' + esc(it.revision) + '</td>' +
+          '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + esc(it.owner) + '</td>' +
+          '<td>' + motivos.join(' ') + '</td><td class="num">' + (u.dias === null ? '—' : u.dias + ' dias') + '</td></tr>';
+      });
+      html += '</tbody></table></div>' + (d.acao.length > 200 ? '<p class="sm-nota">Mostrando 200 de ' + d.acao.length + '. Use Exportar para ver todos.</p>' : '');
+    }
+    html += '</div>';
+
+    // árvore
+    html += '<div class="sm-caixa"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px">' +
+      '<h2 class="sm-secao-t" style="margin:0">Estrutura</h2>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap"><button type="button" class="sm-btn2" id="sm-exp-tudo">Expandir tudo</button>' +
+      '<button type="button" class="sm-btn2" id="sm-rec-tudo">Recolher tudo</button></div></div>' +
+      '<div class="sm-tabela" id="sm-arvore"></div><p class="sm-nota" id="sm-arvore-nota"></p></div>';
+
+    $('sm-conteudo').innerHTML = html;
+    desenharArvore();
+  }
+
+  function desenharArvore() {
+    var linhas = [];
+    var cortado = false;
+    (function percorrer(no) {
+      for (var i = 0; i < no.filhos.length; i++) {
+        if (linhas.length >= LIMITE_LINHAS) { cortado = true; return; }
+        var f = no.filhos[i];
+        linhas.push(f);
+        if (aberto[f.idx] && f.filhos.length) percorrer(f);
+      }
+    })(dados.raiz);
+
+    var html = '<table style="min-width:900px"><thead><tr><th>Título</th><th>Item</th><th class="num">Nível</th><th>Rev.</th><th>Estado</th><th>Owner</th><th>Modificado</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
+    linhas.forEach(function (n) {
+      var it = n.item, recuo = (n.nivel - 1) * 22;
+      var botao = n.filhos.length
+        ? '<button type="button" class="sm-tg" data-idx="' + n.idx + '" aria-expanded="' + (aberto[n.idx] ? 'true' : 'false') + '" aria-label="' + (aberto[n.idx] ? 'Recolher' : 'Expandir') + ' ' + esc(it.title || it.name) + '">' + (aberto[n.idx] ? ICONE_ABERTO : ICONE_FECHADO) + '</button>'
+        : '<span class="sm-tg-vazio"></span>';
+      var alertas = '';
+      if (n.temFilhoPendente) alertas += '<span class="sm-tag t-pai">filho pendente</span> ';
+      if (n.paiLiberado) alertas += '<span class="sm-tag t-pai">pai liberado</span> ';
+      if (n.parado) alertas += '<span class="sm-tag t-parado">parado</span>';
+      html += '<tr' + (n.paiLiberado || n.temFilhoPendente ? ' class="marcada"' : '') + '>' +
+        '<td><span class="sm-nome" style="padding-left:' + recuo + 'px">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
+          (n.filhos.length ? '<span class="sm-filhos">(' + n.filhos.length + ')</span>' : '') + '</span></td>' +
+        '<td class="sm-mono">' + esc(it.name) + '</td><td class="num">' + n.nivel + '</td><td>' + esc(it.revision) + '</td>' +
+        '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
+        '<td>' + esc(it.owner) + '</td><td>' + esc((it.modified || '').slice(0, 10).split('-').reverse().join('/')) + '</td>' +
+        '<td class="num">' + (n.dias === null ? '—' : n.dias) + '</td><td>' + (alertas || '') + '</td></tr>';
+    });
+    html += '</tbody></table>';
+    $('sm-arvore').innerHTML = html;
+    var abertos = Object.keys(aberto).length;
+    $('sm-arvore-nota').textContent = 'Mostrando ' + linhas.length + ' de ' + dados.nos.length + ' linhas' +
+      (abertos ? '' : ' · use as setas para abrir as submontagens') +
+      (cortado ? ' · lista cortada em ' + LIMITE_LINHAS + ' linhas, use Exportar para ver tudo' : '') + '.';
+  }
+
+  function expandirTudo() {
+    aberto = {};
+    dados.nos.forEach(function (n) { if (n.filhos.length) aberto[n.idx] = true; });
+    desenharArvore();
+  }
+
+  // ---------- exportação ----------
+  function exportar() {
+    if (!dados) return;
+    var sep = ';';
+    function cel(v) { v = String(v == null ? '' : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+    var linhas = [['Nível', 'Item', 'Título', 'Revisão', 'Estado', 'Owner', 'Modificado', 'Dias sem alteração', 'Alertas'].join(sep)];
+    var r = dados.raiz.item;
+    linhas.push(['0', r.name, r.title, r.revision, rotulo(r.state), r.owner, (r.modified || '').slice(0, 10), '', ''].map(cel).join(sep));
+    (function percorrer(no) {
+      no.filhos.forEach(function (n) {
+        var it = n.item, a = [];
+        if (n.temFilhoPendente) a.push('filho pendente');
+        if (n.paiLiberado) a.push('pai liberado');
+        if (n.parado) a.push('parado');
+        linhas.push([n.nivel, it.name, it.title, it.revision, rotulo(it.state), it.owner, (it.modified || '').slice(0, 10), n.dias === null ? '' : n.dias, a.join(', ')].map(cel).join(sep));
+        percorrer(n);
+      });
+    })(dados.raiz);
+    var conteudo = '﻿' + linhas.join('\r\n');
+    var nome = 'status-' + String(r.title || r.name).replace(/[^\w.-]+/g, '_') + '.csv';
+    try {
+      var blob = new Blob([conteudo], { type: 'text/csv;charset=utf-8' });
+      if (window.navigator && window.navigator.msSaveOrOpenBlob) { window.navigator.msSaveOrOpenBlob(blob, nome); return; }
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = nome;
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 1000);
+    } catch (e) {
+      mostrarAviso('Não consegui baixar o arquivo: ' + esc(textoErro(e)), 'erro');
+    }
+  }
+
+  // ---------- configurações ----------
+  function carregarCfg() {
+    var l = parseInt(lerLocal('sm-limite'), 10); if (l > 0) cfg.limite = l;
+    var m = parseInt(lerLocal('sm-meta'), 10); if (m > 0 && m <= 100) cfg.metaPct = m;
+    cfg.metaData = lerLocal('sm-data') || '';
+    $('sm-limite').value = cfg.limite; $('sm-meta').value = cfg.metaPct; $('sm-data').value = cfg.metaData;
+  }
+  function mudouCfg() {
+    var l = parseInt($('sm-limite').value, 10), m = parseInt($('sm-meta').value, 10);
+    if (l > 0) { cfg.limite = l; gravarLocal('sm-limite', String(l)); }
+    if (m > 0 && m <= 100) { cfg.metaPct = m; gravarLocal('sm-meta', String(m)); }
+    cfg.metaData = $('sm-data').value || ''; gravarLocal('sm-data', cfg.metaData);
+    if (bruto) {
+      var antes = aberto;
+      processar();
+      aberto = antes;
+      desenhar();
+    }
+  }
+
+  // ---------- início ----------
   function modoForaDoDashboard() {
     if (conectado) return;
-    $('sm-info').textContent = '';
-    mostrarAviso('<strong>A hospedagem está funcionando.</strong> Este widget só lê dados quando aberto dentro do 3DDashboard, pelo app Run Your App. Copie o endereço desta página e cole lá.');
+    $('sm-conexao').textContent = 'Fora do 3DDashboard';
+    mostrarAviso('<strong>A hospedagem está funcionando.</strong> Este widget só lê dados quando aberto dentro do 3DDashboard, pelo app Run Your App.');
   }
 
   function iniciar() {
     var raizDom = (typeof widget !== 'undefined' && widget.body) ? widget.body : document.body;
     raizDom.innerHTML = TEMPLATE;
     registro = [];
+    carregarCfg();
     $('sm-buscar').addEventListener('click', buscar);
     $('sm-nome').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
-    atualizarDiagnostico();
+    $('sm-atualizar').addEventListener('click', function () { if (bruto) ler(bruto.raiz); });
+    $('sm-exportar').addEventListener('click', exportar);
+    ['sm-limite', 'sm-meta', 'sm-data'].forEach(function (id) { $(id).addEventListener('change', mudouCfg); });
+    // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
+    $('sm-conteudo').addEventListener('click', function (ev) {
+      var alvo = ev.target;
+      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-escolha') || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
+      if (!alvo || alvo === this) return;
+      if (alvo.classList.contains('sm-escolha')) { ler(encontrados[Number(alvo.getAttribute('data-i'))]); return; }
+      if (alvo.id === 'sm-exp-tudo') { expandirTudo(); return; }
+      if (alvo.id === 'sm-rec-tudo') { aberto = {}; desenharArvore(); return; }
+      var idx = Number(alvo.getAttribute('data-idx'));
+      if (aberto[idx]) delete aberto[idx]; else aberto[idx] = true;
+      desenharArvore();
+    });
     if (typeof require !== 'function') { modoForaDoDashboard(); return; }
     var esperando = setTimeout(function () { if (!WAF) modoForaDoDashboard(); }, 15000);
-    require(['DS/WAFData/WAFData', 'DS/i3DXCompassServices/i3DXCompassServices'], function (W, C) {
+    require(['DS/WAFData/WAFData'], function (W) {
       clearTimeout(esperando);
-      WAF = W; Compass = C;
+      WAF = W;
       conectar();
     }, function () { clearTimeout(esperando); modoForaDoDashboard(); });
   }
 
-  if (typeof widget !== 'undefined' && widget.addEvent) {
-    widget.addEvent('onLoad', iniciar);
-  } else {
-    document.addEventListener('DOMContentLoaded', iniciar);
-  }
+  if (typeof widget !== 'undefined' && widget.addEvent) widget.addEvent('onLoad', iniciar);
+  else document.addEventListener('DOMContentLoaded', iniciar);
+
+  // usado só para testes fora do dashboard
+  window.__smTeste = { processar: function (raiz, membros, limite) { cfg.limite = limite || 15; bruto = { raiz: raiz, membros: membros, lido: '' }; processar(); return dados; } };
 })();
 </script>
 </head>
