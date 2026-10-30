@@ -61,6 +61,10 @@
   .sm-tg { width: 26px; height: 26px; border: 1px solid #C3C9D1; border-radius: 4px; background: #fff; cursor: pointer; padding: 0; display: inline-flex; align-items: center; justify-content: center; color: #1B1F24; vertical-align: middle; }
   .sm-tg:hover { background: #EEF0F3; }
   .sm-tg-vazio { display: inline-block; width: 26px; }
+  .sm-thumb { width: 64px; height: 48px; border: 1px solid #E3E6EA; border-radius: 4px; background: #F6F7F9; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .sm-thumb img { max-width: 100%; max-height: 100%; display: block; }
+  .sm-thumb.vazio { color: #8A929C; font-size: 10px; }
+  .sm-tabela td.sm-celthumb { padding: 4px 6px; width: 76px; }
   .sm-nome { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
   .sm-filhos { font-size: 11px; color: #4F5864; }
   .sm-owner-g { display: grid; grid-template-columns: minmax(80px, 180px) minmax(0, 1fr) 40px; gap: 8px 12px; align-items: center; font-size: 13px; }
@@ -86,7 +90,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'mvp-1 (30/10/2026)';
+  var VERSAO = 'mvp-2 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -101,6 +105,8 @@
   var dados = null;     // resultado processado
   var aberto = {};      // nós da árvore expandidos (por índice)
   var encontrados = [];
+  var thumbs = {};        // nome do item -> endereço da pré-visualização ('' = sem imagem)
+  var thumbsEstado = '';  // '', 'carregando', 'ok', 'erro'
   var cfg = { limite: 15, metaPct: 90, metaData: '' };
 
   var ROTULOS = { IN_WORK: 'Em trabalho', FROZEN: 'Congelado', RELEASED: 'Liberado', PRIVATE: 'Privado', OBSOLETE: 'Obsoleto' };
@@ -169,6 +175,13 @@
     return Math.floor((Date.now() - t) / 86400000);
   }
   function pct(a, b) { return b ? Math.round(a * 100 / b) : 0; }
+  function dataBR(v) {
+    var t = Date.parse(v);
+    if (isNaN(t)) return v || '';
+    var d = new Date(t);
+    function z(n) { return (n < 10 ? '0' : '') + n; }
+    return z(d.getDate()) + '/' + z(d.getMonth() + 1) + '/' + d.getFullYear();
+  }
   function agora() {
     var d = new Date();
     function z(n) { return (n < 10 ? '0' : '') + n; }
@@ -337,9 +350,11 @@
       var membros = (r && r.member) || [];
       bruto = { raiz: raiz, membros: membros, lido: agora() };
       aberto = {};
+      thumbs = {}; thumbsEstado = '';
       processar();
       anotar('Expansão', 'OK', dados.unicos.length + ' itens únicos, ' + dados.nos.length + ' ocorrências');
       desenhar();
+      carregarThumbs();
     }).catch(function (e) {
       anotar('Expansão', 'ERRO', textoErro(e));
       $('sm-conteudo').innerHTML = '';
@@ -349,6 +364,54 @@
       $('sm-atualizar').disabled = !bruto;
       $('sm-exportar').disabled = !dados;
     });
+  }
+
+  // ---------- thumbnails (via 3DSearch, que devolve o preview_url de cada item) ----------
+  function carregarThumbs() {
+    if (!dados) return;
+    var m = /^(https:\/\/)([a-z0-9]+)(-[a-z0-9]+)-space\.(.*?)\/enovia/i.exec(estado.spaceUrl || '');
+    if (!m) { thumbsEstado = 'erro'; anotar('Thumbnails', 'ERRO', 'não reconheci o endereço do 3DSpace'); desenharArvore(); return; }
+    var tenant = m[2].toUpperCase();
+    var urlBusca = m[1] + m[2] + m[3] + '-fedsearch.' + m[4] + '/federated/search?xrequestedwith=xmlhttprequest&tenant=' + tenant;
+    var nomes = [];
+    dados.unicos.forEach(function (u) { if (u.item.name && !(u.item.name in thumbs)) nomes.push(u.item.name); });
+    if (dados.raiz.item.name && !(dados.raiz.item.name in thumbs)) nomes.push(dados.raiz.item.name);
+    if (!nomes.length) { thumbsEstado = 'ok'; desenharArvore(); return; }
+    thumbsEstado = 'carregando';
+    anotar('Thumbnails', '...', nomes.length + ' itens');
+    var lotes = [];
+    for (var i = 0; i < nomes.length; i += 25) lotes.push(nomes.slice(i, i + 25));
+    var falhas = 0;
+    var promessas = lotes.map(function (lote) {
+      var corpo = {
+        label: 'sm-thumbs', locale: 'en', select_predicate: ['ds6w:identifier', 'preview_url'],
+        with_indexing_date: false, with_nls: false, with_synthesis: false,
+        query: lote.join(' OR '), refine: {}, order_by: 'desc', order_field: 'relevance',
+        nresults: 100, start: '0', source: ['3dspace'], tenant: tenant,
+        login: { '3dspace': { SecurityContext: estado.ctx } }
+      };
+      return requisicao('POST', urlBusca, corpo).then(function (r) {
+        (r && r.results || []).forEach(function (res) {
+          var a = {};
+          (res.attributes || []).forEach(function (x) { a[x.name] = x.value; });
+          var id = a['ds6w:identifier'];
+          if (id && lote.indexOf(id) >= 0 && a.preview_url) thumbs[id] = a.preview_url;
+        });
+        lote.forEach(function (n) { if (!(n in thumbs)) thumbs[n] = ''; });
+      }).catch(function (e) { falhas++; amostra.erroThumbs = textoErro(e); });
+    });
+    Promise.all(promessas).then(function () {
+      thumbsEstado = falhas === lotes.length ? 'erro' : 'ok';
+      anotar('Thumbnails', falhas ? (falhas === lotes.length ? 'ERRO' : 'OK') : 'OK', falhas ? falhas + ' de ' + lotes.length + ' lote(s) falharam' : '');
+      desenharArvore();
+    });
+  }
+
+  function celulaThumb(item) {
+    var url = thumbs[item.name];
+    if (url) return '<div class="sm-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" /></div>';
+    var txt = thumbsEstado === 'carregando' && !(item.name in thumbs) ? '...' : 'sem imagem';
+    return '<div class="sm-thumb vazio">' + txt + '</div>';
   }
 
   // ---------- processamento ----------
@@ -602,7 +665,7 @@
       }
     })(dados.raiz);
 
-    var html = '<table style="min-width:900px"><thead><tr><th>Título</th><th>Item</th><th class="num">Nível</th><th>Rev.</th><th>Estado</th><th>Owner</th><th>Modificado</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
+    var html = '<table style="min-width:900px"><thead><tr><th class="num">Nível</th><th>Thumbnail</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Modificado</th><th>Owner</th><th class="num">Dias</th><th>Alertas</th></tr></thead><tbody>';
     linhas.forEach(function (n) {
       var it = n.item, recuo = (n.nivel - 1) * 22;
       var botao = n.filhos.length
@@ -613,11 +676,13 @@
       if (n.paiLiberado) alertas += '<span class="sm-tag t-pai">pai liberado</span> ';
       if (n.parado) alertas += '<span class="sm-tag t-parado">parado</span>';
       html += '<tr' + (n.paiLiberado || n.temFilhoPendente ? ' class="marcada"' : '') + '>' +
-        '<td><span class="sm-nome" style="padding-left:' + recuo + 'px">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
+        '<td class="num">' + n.nivel + '</td>' +
+        '<td class="sm-celthumb">' + celulaThumb(it) + '</td>' +
+        '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(it.name) + '">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
           (n.filhos.length ? '<span class="sm-filhos">(' + n.filhos.length + ')</span>' : '') + '</span></td>' +
-        '<td class="sm-mono">' + esc(it.name) + '</td><td class="num">' + n.nivel + '</td><td>' + esc(it.revision) + '</td>' +
+        '<td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
-        '<td>' + esc(it.owner) + '</td><td>' + esc((it.modified || '').slice(0, 10).split('-').reverse().join('/')) + '</td>' +
+        '<td>' + esc(dataBR(it.modified)) + '</td><td>' + esc(it.owner) + '</td>' +
         '<td class="num">' + (n.dias === null ? '—' : n.dias) + '</td><td>' + (alertas || '') + '</td></tr>';
     });
     html += '</tbody></table>';
@@ -641,14 +706,14 @@
     function cel(v) { v = String(v == null ? '' : v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
     var linhas = [['Nível', 'Item', 'Título', 'Revisão', 'Estado', 'Owner', 'Modificado', 'Dias sem alteração', 'Alertas'].join(sep)];
     var r = dados.raiz.item;
-    linhas.push(['0', r.name, r.title, r.revision, rotulo(r.state), r.owner, (r.modified || '').slice(0, 10), '', ''].map(cel).join(sep));
+    linhas.push(['0', r.name, r.title, r.revision, rotulo(r.state), r.owner, dataBR(r.modified), '', ''].map(cel).join(sep));
     (function percorrer(no) {
       no.filhos.forEach(function (n) {
         var it = n.item, a = [];
         if (n.temFilhoPendente) a.push('filho pendente');
         if (n.paiLiberado) a.push('pai liberado');
         if (n.parado) a.push('parado');
-        linhas.push([n.nivel, it.name, it.title, it.revision, rotulo(it.state), it.owner, (it.modified || '').slice(0, 10), n.dias === null ? '' : n.dias, a.join(', ')].map(cel).join(sep));
+        linhas.push([n.nivel, it.name, it.title, it.revision, rotulo(it.state), it.owner, dataBR(it.modified), n.dias === null ? '' : n.dias, a.join(', ')].map(cel).join(sep));
         percorrer(n);
       });
     })(dados.raiz);
