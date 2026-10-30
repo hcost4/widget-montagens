@@ -177,6 +177,10 @@
   .sm-tabela tr.sm-linha2d td { background: #23272A; }
   .sm-link2d { border: 0; background: none; padding: 0; font: inherit; color: var(--destaque); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; text-align: left; }
   .sm-link2d:hover { color: var(--destaque-h); }
+  .sm-link3d { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: rgba(201,205,209,0.35); text-underline-offset: 3px; }
+  .sm-link3d.forte { font-weight: 600; }
+  .sm-link3d:hover { color: var(--destaque); text-decoration-color: currentColor; }
+  h2 .sm-link3d { font-weight: inherit; }
 
   /* responsáveis */
   .sm-owner-g { display: grid; grid-template-columns: minmax(100px, 220px) minmax(0, 1fr) 48px 90px; gap: 12px 14px; align-items: center; font-size: 13px; }
@@ -220,7 +224,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v1.2 (30/10/2026)';
+  var VERSAO = 'v1.3 (30/10/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -778,6 +782,15 @@
     return 0;
   }
 
+  function link3D(it, texto, forte) {
+    return '<button type="button" class="sm-link3d' + (forte ? ' forte' : '') + '" data-id="' + esc(it.id) + '" title="Abrir ' + esc(it.title || it.name) + ' no 3DPlay (nova aba)">' + esc(texto) + '</button>';
+  }
+  function itemPorId(id) {
+    if (dados.raiz.item.id === id) return dados.raiz.item;
+    for (var i = 0; i < dados.nos.length; i++) if (dados.nos[i].item.id === id) return dados.nos[i].item;
+    return null;
+  }
+
   function celulaThumb(item, idx) {
     var url = thumbs[item.name], miolo;
     if (url) miolo = '<div class="sm-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" /></div>';
@@ -1139,7 +1152,7 @@
     html += '<div class="sm-tabela"><table style="min-width:960px"><thead><tr><th>Thumbnail</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Owner</th><th>Reserva</th><th>Revisão nova</th><th class="num">Sem alteração</th></tr></thead><tbody>';
     lista.slice(0, 500).forEach(function (e) {
       var it = e.item;
-      html += '<tr><td class="sm-celthumb">' + celulaThumb(it, idxDoItem(it.id)) + '</td><td title="' + esc(it.name) + '"><strong>' + esc(it.title || it.name) + '</strong></td><td>' + esc(it.revision) + '</td>' +
+      html += '<tr><td class="sm-celthumb">' + celulaThumb(it, idxDoItem(it.id)) + '</td><td title="' + esc(it.name) + '">' + link3D(it, it.title || it.name, true) + '</td><td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
         '<td>' + (tagReserva(it) || '<span class="sm-vazio">—</span>') + '</td><td>' + (tagRevNova(it) || '<span class="sm-vazio">—</span>') + '</td>' +
         '<td class="num">' + (e.dias === null || e.dias === undefined ? '—' : e.dias + ' dias') + '</td></tr>';
@@ -1166,7 +1179,7 @@
     var img = thumbs[r.name];
     html += '<div class="sm-cartao sm-cab">' +
       '<button type="button" class="sm-thumb-btn" data-idx="0" aria-label="Ver detalhes da montagem"><div class="sm-cab-img">' + (img ? '<img src="' + esc(img) + '" alt="" />' : '<span class="sm-vazio">...</span>') + '</div></button>' +
-      '<div style="min-width:0;flex:1 1 300px"><h2>' + esc(r.title || r.name) + '</h2>' +
+      '<div style="min-width:0;flex:1 1 300px"><h2>' + link3D(r, r.title || r.name) + '</h2>' +
       '<div class="sm-cab-meta"><span class="sm-mono">' + esc(r.name) + '</span><span>Rev. ' + esc(r.revision) + '</span>' +
       '<span class="sm-est e-' + esc(r.state) + '">' + esc(rotulo(r.state)) + '</span><span>Owner ' + esc(r.owner) + '</span>' +
       '<span>Desenho ' + tagDesenho(r) + '</span>' + tagReserva(r) + tagRevNova(r) + '</div></div></div>';
@@ -1213,7 +1226,7 @@
       if (u.paiLiberado) motivos.push('<span class="sm-tag t-pai">pai liberado: ' + esc(Object.keys(u.pais).join(', ')) + '</span>');
       if (e.semDes) motivos.push('<span class="sm-tag t-pai">liberado sem desenho liberado</span>');
       if (u.parado) motivos.push('<span class="sm-tag t-parado">' + (reservas[it.id] ? 'parado e reservado' : 'parado') + '</span>');
-      html += '<tr><td title="' + esc(it.name) + '">' + esc(it.title) + '</td><td>' + esc(it.revision) + '</td>' +
+      html += '<tr><td title="' + esc(it.name) + '">' + link3D(it, it.title || it.name) + '</td><td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
         '<td>' + motivos.join(' ') + '</td><td class="num">' + (u.dias === null || u.dias === undefined ? '—' : u.dias + ' dias') + '</td></tr>';
     });
@@ -1241,7 +1254,7 @@
       var alertas = '';
       if (s.no.temFilhoPendente) alertas += '<span class="sm-tag t-pai">liberada com filho pendente</span> ';
       if (s.parados) alertas += '<span class="sm-tag t-parado">' + s.parados + ' parado(s)</span>';
-      html += '<tr' + (s.no.temFilhoPendente ? ' class="marcada"' : '') + '><td><strong>' + esc(it.title || it.name) + '</strong></td>' +
+      html += '<tr' + (s.no.temFilhoPendente ? ' class="marcada"' : '') + '><td>' + link3D(it, it.title || it.name, true) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td>' +
         '<td class="num">' + s.total + '</td><td>' + barraEstados(s.cont, s.total) + '</td>' +
         '<td class="num">' + pct(l, s.total) + '%</td><td class="num">' + celDes + '</td><td>' + (alertas || '<span class="sm-vazio">—</span>') + '</td></tr>';
@@ -1331,7 +1344,7 @@
       alertas += tagRevNova(it) + ' ' + tagReserva(it);
       html += '<tr' + (n.paiLiberado || n.temFilhoPendente ? ' class="marcada"' : '') + '>' +
         '<td class="num">' + n.nivel + '</td>' +
-        '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(it.name) + '">' + botao + '<span' + (n.filhos.length ? ' style="font-weight:600"' : '') + '>' + esc(it.title || it.name) + '</span>' +
+        '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(it.name) + '">' + botao + link3D(it, it.title || it.name, n.filhos.length > 0) +
           (contagem.length ? '<span class="sm-filhos">(' + contagem.join(' · ') + ')</span>' : '') + '</span></td>' +
         '<td class="sm-celthumb">' + celulaThumb(it, n.idx) + '</td>' +
         '<td>' + esc(it.revision) + '</td>' +
@@ -1435,9 +1448,14 @@
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
-      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-escolha') || alvo.classList.contains('sm-aba') || alvo.classList.contains('sm-filtrar') || alvo.id === 'sm-limpar-filtro' || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
+      while (alvo && alvo !== this && !(alvo.classList && (alvo.classList.contains('sm-tg') || alvo.classList.contains('sm-thumb-btn') || alvo.classList.contains('sm-link2d') || alvo.classList.contains('sm-link3d') || alvo.classList.contains('sm-escolha') || alvo.classList.contains('sm-aba') || alvo.classList.contains('sm-filtrar') || alvo.id === 'sm-limpar-filtro' || alvo.id === 'sm-exp-tudo' || alvo.id === 'sm-rec-tudo'))) alvo = alvo.parentNode;
       if (!alvo || alvo === this) return;
       if (alvo.classList.contains('sm-thumb-btn')) { abrirModal(Number(alvo.getAttribute('data-idx'))); return; }
+      if (alvo.classList.contains('sm-link3d')) {
+        var it3 = itemPorId(alvo.getAttribute('data-id'));
+        if (it3) { var m3 = abrirPorLink(it3, 'o item em 3D'); if (/bloqueou/.test(m3)) mostrarAviso(m3.replace(/^<div class="sm-aviso">|<\/div>$/g, '')); }
+        return;
+      }
       if (alvo.classList.contains('sm-link2d')) {
         var idDes = alvo.getAttribute('data-des');
         var achado = (desenhosLista[alvo.getAttribute('data-item')] || []).filter(function (x) { return x.id === idDes; })[0];
