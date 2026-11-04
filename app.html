@@ -189,6 +189,9 @@
   .sm-root.sm-soltando .sm-soltar { display: flex; position: fixed; }
   [draggable="true"] { -webkit-user-drag: element; }
   .sm-link3d[draggable="true"]:active, .sm-link2d[draggable="true"]:active { cursor: grabbing; }
+  .sm-kpi.minhas { border-color: rgba(186,213,50,0.55); background: linear-gradient(180deg, rgba(186,213,50,0.10), rgba(186,213,50,0.02)); }
+  .sm-kpi.minhas .v { color: var(--destaque); }
+  .t-minha { background: rgba(186,213,50,0.18); color: var(--destaque); }
   .sm-modos { display: inline-flex; margin-left: 8px; background: #222528; border: 1px solid var(--borda); border-radius: 9px; padding: 3px; gap: 2px; }
   .sm-modo { border: 0; background: none; color: var(--texto3); font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .sm-modo:hover { color: var(--titulo); }
@@ -270,7 +273,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v2.0 (04/11/2026)';
+  var VERSAO = 'v2.1 (04/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -358,6 +361,7 @@
               '<dt>Reservado</dt><dd>Item reservado (travado para edição) por alguém. Reservado e parado: reservado e sem modificação há pelo menos o número de dias configurado.</dd>' +
               '<dt>Em revisão</dt><dd>A estrutura usa uma revisão, mas já existe uma revisão mais nova do mesmo item na 3DX (ex.: estrutura na rev. A liberada, rev. B em trabalho).</dd>' +
               '<dt>Carteira</dt><dd>Lista de montagens acompanhadas juntas, salva neste navegador. Situação: <strong>Crítico</strong> quando há inconsistência: item pendente sob pai liberado ou item reservado e parado. <strong>Atenção</strong> quando há item liberado sem desenho liberado, item parado, ou itens/desenhos liberados abaixo da meta (%) das Configurações. <strong>No prazo</strong> quando nada disso acontece.</dd>' +
+              '<dt>Minhas pendências</dt><dd>Itens em que você é o owner e que ainda não estão liberados (ou liberados com desenho pendente), mais itens reservados por você.</dd>' +
               '<dt>Filtros</dt><dd>Clique numa fatia dos gráficos ou num indicador para ver só aqueles itens.</dd>' +
               '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
             '</dl>' +
@@ -515,7 +519,7 @@
   function continuarConexao(endereco) {
     estado.spaceUrl = String(endereco).replace(/\/+$/, '');
     anotar('Usuário e contexto', '...');
-    comTempo(requisicao('GET', estado.spaceUrl + '/resources/modeler/pno/person?current=true&select=preferredcredentials&select=collabspaces'), 30000, 'dados do usuário')
+    comTempo(requisicao('GET', estado.spaceUrl + '/resources/modeler/pno/person?current=true&select=preferredcredentials&select=collabspaces&select=firstname&select=lastname'), 30000, 'dados do usuário')
     .then(function (pessoa) {
       var pc = pessoa && pessoa.preferredcredentials;
       if (pc && pc.role && pc.organization && pc.collabspace) {
@@ -527,6 +531,7 @@
         throw new Error('não encontrei credenciais do usuário');
       }
       estado.usuario = pessoa.name || '';
+      estado.nomeCompleto = [pessoa.firstname, pessoa.lastname].filter(Boolean).join(' ');
       anotar('Usuário e contexto', 'OK', estado.usuario + ' · ' + estado.ctx);
       anotar('Token CSRF', '...');
       return comTempo(requisicao('GET', estado.spaceUrl + '/resources/v1/application/CSRF'), 30000, 'token CSRF');
@@ -684,7 +689,7 @@
       total: total, lib: lib, pctLib: pct(lib, total), naoLib: d.unicos.filter(function (u) { return u.item.state !== 'RELEASED' && u.item.state !== 'OBSOLETE'; }).length,
       desTotal: rd.base, desLib: rd.lib, desFaltam: rd.faltam, desSem: rd.sem, pctDes: rd.pct, desOk: desenhosEstado === 'ok',
       parados: d.parados, paiLib: d.paiLib, semDesLib: semDesLib, reservados: res.length, resPar: resPar,
-      revisao: itensDoFiltro('kpi:revisao').length, acao: acao.length, thumb: thumbs[d.raiz.item.name] || '', raiz: d.raiz.item
+      revisao: itensDoFiltro('kpi:revisao').length, minhas: itensDoFiltro('kpi:minhas').length, acao: acao.length, thumb: thumbs[d.raiz.item.name] || '', raiz: d.raiz.item
     };
     // Crítico: só inconsistência de verdade. Atenção: pendências normais de andamento.
     var criticos = [], atencao = [];
@@ -780,8 +785,8 @@
     }
     var res = lista.map(function (m) { return { m: m, c: carteiraDados[m.id] }; });
     var ok = res.filter(function (x) { return x.c && x.c.resumo; });
-    var t = { total: 0, lib: 0, desTotal: 0, desLib: 0, parados: 0, reservados: 0, revisao: 0, acao: 0, verde: 0, amarelo: 0, vermelho: 0 };
-    ok.forEach(function (x) { var r = x.c.resumo; ['total', 'lib', 'desTotal', 'desLib', 'parados', 'reservados', 'revisao', 'acao'].forEach(function (k) { t[k] += r[k]; }); t[r.sinal]++; });
+    var t = { total: 0, lib: 0, desTotal: 0, desLib: 0, parados: 0, reservados: 0, revisao: 0, acao: 0, minhas: 0, verde: 0, amarelo: 0, vermelho: 0 };
+    ok.forEach(function (x) { var r = x.c.resumo; ['total', 'lib', 'desTotal', 'desLib', 'parados', 'reservados', 'revisao', 'acao', 'minhas'].forEach(function (k) { t[k] += r[k] || 0; }); t[r.sinal]++; });
 
     html += '<div class="sm-kpis sm-cart-kpis">' +
       kpiC('Montagens', lista.length, ok.length < lista.length ? (lista.length - ok.length) + ' sem leitura' : 'na carteira', '') +
@@ -790,6 +795,7 @@
       kpiC('Desenhos liberados', pct(t.desLib, t.desTotal) + '%', t.desLib + ' de ' + t.desTotal, '') +
       kpiC('Pedem ação', t.acao, t.parados + ' parado(s) · ' + t.reservados + ' reservado(s)', t.acao ? 'alerta' : '') +
       kpiC('Em revisão', t.revisao, 'revisão nova em andamento', '') +
+      kpiC('Minhas pendências', t.minhas, t.minhas ? 'somando todas as montagens' : 'nada com você 👍', 'minhas') +
       '</div>';
 
     var ordem = { vermelho: 0, amarelo: 1, verde: 2 };
@@ -799,13 +805,13 @@
     });
     html += '<div class="sm-cartao"><div class="sm-painel-topo"><p>Ordenado do mais crítico para o mais tranquilo. Clique na montagem para ver o detalhe.</p></div>' +
       '<div class="sm-tabela"><table style="min-width:1060px"><thead><tr><th>Situação</th><th>Thumbnail</th><th>Montagem</th><th>Estado</th><th>Itens liberados</th><th>Desenhos liberados</th>' +
-      '<th class="num">Pedem ação</th><th class="num">Parados</th><th class="num">Reservados</th><th class="num">Em revisão</th><th></th></tr></thead><tbody>';
+      '<th class="num">Pedem ação</th><th class="num">Parados</th><th class="num">Reservados</th><th class="num">Em revisão</th><th class="num">Minhas</th><th></th></tr></thead><tbody>';
     res.forEach(function (x) {
       var m = x.m, c = x.c, r = c && c.resumo;
       var nome = '<button type="button" draggable="true" class="sm-link3d forte sm-cart-abrir" data-id="' + esc(m.id) + '"' + (r ? '' : ' disabled') + '>' + esc(m.title || m.name) + '</button><div class="sm-mono sm-cart-sub">' + esc(m.name) + ' · rev. ' + esc(m.revision) + '</div>';
       var tirar = '<button type="button" class="sm-icone-btn sm-cart-tira" data-id="' + esc(m.id) + '" aria-label="Tirar ' + esc(m.title || m.name) + ' da carteira" title="Tirar da carteira">' + ICONE_X + '</button>';
       if (!r) {
-        html += '<tr><td><span class="sm-sinal s-cinza">' + (c && c.erro ? 'Erro' : 'Não lida') + '</span></td><td></td><td>' + nome + (c && c.erro ? '<div class="sm-erro-txt">' + esc(c.erro) + '</div>' : '') + '</td><td colspan="7"><span class="sm-vazio">' + (c && c.erro ? 'não consegui ler esta montagem' : 'clique em Atualizar para ler') + '</span></td><td>' + tirar + '</td></tr>';
+        html += '<tr><td><span class="sm-sinal s-cinza">' + (c && c.erro ? 'Erro' : 'Não lida') + '</span></td><td></td><td>' + nome + (c && c.erro ? '<div class="sm-erro-txt">' + esc(c.erro) + '</div>' : '') + '</td><td colspan="8"><span class="sm-vazio">' + (c && c.erro ? 'não consegui ler esta montagem' : 'clique em Atualizar para ler') + '</span></td><td>' + tirar + '</td></tr>';
         return;
       }
       html += '<tr' + (r.sinal === 'vermelho' ? ' class="marcada"' : '') + '>' +
@@ -819,6 +825,7 @@
         '<td class="num">' + (r.parados ? '<span class="sm-tag t-parado">' + r.parados + '</span>' : '—') + '</td>' +
         '<td class="num">' + (r.reservados ? '<span class="sm-tag t-res">' + ICONE_CADEADO + ' ' + r.reservados + '</span>' : '—') + '</td>' +
         '<td class="num">' + (r.revisao ? '<span class="sm-tag t-rev">' + r.revisao + '</span>' : '—') + '</td>' +
+        '<td class="num">' + (r.minhas ? '<span class="sm-tag t-minha">' + r.minhas + '</span>' : '—') + '</td>' +
         '<td>' + tirar + '</td></tr>';
     });
     html += '</tbody></table></div></div>';
@@ -1757,7 +1764,30 @@
       '<span class="r">' + esc(rotuloK) + '</span><span class="v">' + valor + '</span><span class="d">' + detalhe + '</span></button>';
   }
 
-  var ROTULOS_FILTRO = { 'kpi:faltamLib': 'Faltam liberar', 'kpi:faltamDes': 'Faltam desenhos', 'kpi:semDesLib': 'Liberados sem desenho', 'kpi:parados': 'Parados', 'kpi:reservados': 'Reservados', 'kpi:revisao': 'Em revisão', 'des:RELEASED': 'Desenho liberado', 'des:NAOLIB': 'Desenho não liberado', 'des:FALTA': 'Sem desenho' };
+  var ROTULOS_FILTRO = { 'kpi:minhas': 'Minhas pendências', 'kpi:faltamLib': 'Faltam liberar', 'kpi:faltamDes': 'Faltam desenhos', 'kpi:semDesLib': 'Liberados sem desenho', 'kpi:parados': 'Parados', 'kpi:reservados': 'Reservados', 'kpi:revisao': 'Em revisão', 'des:RELEASED': 'Desenho liberado', 'des:NAOLIB': 'Desenho não liberado', 'des:FALTA': 'Sem desenho' };
+  // é meu? owner = meu login; reserva = meu nome (ou login)
+  function ehMeu(valor) {
+    var v = String(valor || '').toLowerCase().trim();
+    if (!v) return false;
+    return v === String(estado.usuario || '').toLowerCase() || (!!estado.nomeCompleto && v === estado.nomeCompleto.toLowerCase());
+  }
+  // pendência minha: item meu ainda não liberado, item meu liberado com desenho pendente, ou item reservado por mim
+  function minhaPendencia(it) {
+    if (reservas[it.id] && ehMeu(reservas[it.id].por)) return true;
+    if (!ehMeu(it.owner)) return false;
+    if (it.state !== 'RELEASED' && it.state !== 'OBSOLETE') return true;
+    return it.state === 'RELEASED' && desenhosEstado === 'ok' && desenhoPendente(statusDesenho(it));
+  }
+  function porqueMeu(it) {
+    var m = [];
+    if (reservas[it.id] && ehMeu(reservas[it.id].por)) m.push('reservado por mim');
+    if (ehMeu(it.owner)) {
+      if (it.state !== 'RELEASED' && it.state !== 'OBSOLETE') m.push('sou owner, não liberado');
+      else if (desenhosEstado === 'ok' && desenhoPendente(statusDesenho(it))) m.push('sou owner, desenho pendente');
+    }
+    return m.join(' · ');
+  }
+
   function rotuloFiltro(ch) { return ROTULOS_FILTRO[ch] || (ch.indexOf('est:') === 0 ? 'Estado: ' + rotulo(ch.slice(4)) : ch); }
 
   function itensDoFiltro(ch) {
@@ -1775,6 +1805,7 @@
     if (ch === 'kpi:parados') return base.filter(function (e) { return e.parado; });
     if (ch === 'kpi:reservados') return comRaiz.filter(function (e) { return reservas[e.item.id]; });
     if (ch === 'kpi:revisao') return comRaiz.filter(function (e) { return revNovas[e.item.id]; });
+    if (ch === 'kpi:minhas') return comRaiz.filter(function (e) { return minhaPendencia(e.item); });
     return [];
   }
 
@@ -1792,12 +1823,14 @@
     var html = '<div class="sm-painel-topo"><p>' + lista.length + ' item(ns) em <strong>' + esc(filtro.rotulo) + '</strong>. Clique na thumbnail para ver os detalhes.</p>' +
       '<button type="button" class="sm-btn2" id="sm-limpar-filtro">Limpar filtro</button></div>';
     if (!lista.length) return html + '<p class="sm-vazio">Nenhum item neste filtro.</p>';
-    html += '<div class="sm-tabela"><table style="min-width:960px"><thead><tr><th>Thumbnail</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Owner</th><th>Reserva</th><th>Revisão nova</th><th class="num">Sem alteração</th></tr></thead><tbody>';
+    var colMinha = filtro.chave === 'kpi:minhas';
+    html += '<div class="sm-tabela"><table style="min-width:960px"><thead><tr><th>Thumbnail</th><th>Título</th><th>Rev.</th><th>Estado</th><th>Desenho</th><th>Owner</th><th>Reserva</th><th>Revisão nova</th>' + (colMinha ? '<th>Por que é comigo</th>' : '') + '<th class="num">Sem alteração</th></tr></thead><tbody>';
     lista.slice(0, 500).forEach(function (e) {
       var it = e.item;
       html += '<tr><td class="sm-celthumb">' + celulaThumb(it, idxDoItem(it.id)) + '</td><td title="' + esc(it.name) + '">' + link3D(it, it.title || it.name, true) + '</td><td>' + esc(it.revision) + '</td>' +
         '<td><span class="sm-est e-' + esc(it.state) + '">' + esc(rotulo(it.state)) + '</span></td><td>' + tagDesenho(it) + '</td><td>' + esc(it.owner) + '</td>' +
         '<td>' + (tagReserva(it) || '<span class="sm-vazio">—</span>') + '</td><td>' + (tagRevNova(it) || '<span class="sm-vazio">—</span>') + '</td>' +
+        (colMinha ? '<td>' + esc(porqueMeu(it)) + '</td>' : '') +
         '<td class="num">' + (e.dias === null || e.dias === undefined ? '—' : e.dias + ' dias') + '</td></tr>';
     });
     return html + '</tbody></table></div>';
@@ -1832,7 +1865,9 @@
     html += '<div class="sm-resumo">' + cartaoItens(d) + cartaoDesenhos() + cartaoMeta(d) + '</div>';
 
     // indicadores
+    var nMinhas = itensDoFiltro('kpi:minhas').length;
     html += '<div class="sm-kpis">' +
+      kpi('Minhas pendências', nMinhas, nMinhas ? 'itens que dependem de você' : 'nada com você 👍', 'minhas', 'kpi:minhas') +
       kpi('Faltam liberar', naoLib, 'de ' + total + ' itens únicos', naoLib ? 'atencao' : '', 'kpi:faltamLib') +
       kpi('Faltam desenhos', desOk ? rd.faltam : '...', desOk ? (cfg.exigirDesenho ? rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)' : rd.naoLib + ' não liberado(s) · sem desenho não conta') : 'consultando', desOk && rd.faltam ? 'atencao' : '', 'kpi:faltamDes') +
       kpi('Liberados sem desenho', desOk ? semDesLib : '...', 'liberado sem desenho liberado', desOk && semDesLib ? 'alerta' : '', 'kpi:semDesLib') +
