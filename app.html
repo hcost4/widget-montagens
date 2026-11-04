@@ -180,6 +180,9 @@
   .sm-nova-versao { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; padding: 8px 20px; background: rgba(186,213,50,0.14); color: var(--titulo); font-size: 13px; border-bottom: 1px solid var(--borda); }
   .sm-nova-versao[hidden] { display: none; }
   .sm-nova-versao .sm-btn2 { height: 32px; }
+  .sm-check { display: flex; gap: 10px; align-items: flex-start; max-width: 460px; cursor: pointer; font-size: 13px; color: var(--texto); }
+  .sm-check input { width: 18px; height: 18px; margin-top: 2px; accent-color: #BAD532; flex: none; }
+  .sm-check small { display: block; color: var(--texto3); font-size: 12px; margin-top: 2px; line-height: 1.4; }
   .sm-modos { display: inline-flex; margin-left: 8px; background: #222528; border: 1px solid var(--borda); border-radius: 9px; padding: 3px; gap: 2px; }
   .sm-modo { border: 0; background: none; color: var(--texto3); font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .sm-modo:hover { color: var(--titulo); }
@@ -261,7 +264,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v1.6 (30/10/2026)';
+  var VERSAO = 'v1.7 (04/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -285,7 +288,7 @@
   var revNovas = {};       // id do item da estrutura -> { id, revision, state, owner, modified } da revisão mais nova
   var extrasEstado = '';   // reservas e revisões: '', 'carregando', 'ok', 'erro'
   var filtro = null;       // { chave, rotulo } do filtro aplicado pelos gráficos e indicadores
-  var cfg = { limite: 15, metaPct: 90, metaData: '' };
+  var cfg = { limite: 15, metaPct: 90, metaData: '', exigirDesenho: true };
   var modo = 'montagem';     // 'montagem' ou 'carteira'
   var carteiras = null;      // { atual, listas: { nome: [ {id,name,title,revision,state,type} ] } }
   var carteiraDados = {};    // id da montagem -> { foto, resumo, erro }
@@ -326,6 +329,7 @@
         '<label class="sm-campo" for="sm-limite">Parado após (dias)<input id="sm-limite" type="number" min="0" max="999" style="width:130px" /></label>' +
         '<label class="sm-campo" for="sm-meta">Meta de liberação (%)<input id="sm-meta" type="number" min="1" max="100" style="width:150px" /></label>' +
         '<label class="sm-campo" for="sm-data">Data da meta<input id="sm-data" type="date" style="width:160px" /></label>' +
+        '<label class="sm-check" for="sm-exigir"><input id="sm-exigir" type="checkbox" /><span><strong>Exigir desenho em todos os itens</strong><small>Desligado: itens que nunca tiveram desenho (ex.: comprados, normalizados) não contam como pendência. Só cobra desenho que existe e ainda não foi liberado.</small></span></label>' +
         '<p class="sm-nota">As configurações ficam salvas neste navegador.</p>' +
       '</div>' +
       '<div class="sm-nova-versao" id="sm-nova-versao" hidden></div>' +
@@ -339,13 +343,13 @@
               '<dt>Ocorrências</dt><dd>Cada vez que um item aparece na estrutura (o que a árvore mostra).</dd>' +
               '<dt>Parado</dt><dd>Em trabalho ou privado e sem modificação há pelo menos o número de dias configurado.</dd>' +
               '<dt>Pai liberado</dt><dd>Item não liberado cujo pai direto já está liberado.</dd>' +
-              '<dt>Faltam desenhos</dt><dd>Itens sem nenhum desenho na 3DX mais itens cujo desenho ainda não está liberado. Conta peças, submontagens e a montagem principal.</dd>' +
+              '<dt>Faltam desenhos</dt><dd>Itens cujo desenho ainda não está liberado, mais (se "Exigir desenho em todos os itens" estiver ligado) itens sem nenhum desenho na 3DX. Conta peças, submontagens e a montagem principal.</dd>' +
               '<dt>Desenho do item</dt><dd>Desenho (Drawing) que a própria 3DX liga àquele item ou configuração. Havendo mais de um, vale o mais maduro.</dd>' +
               '<dt>Liberado sem desenho</dt><dd>Item liberado cujo desenho falta ou ainda não está liberado.</dd>' +
               '<dt>Responsáveis</dt><dd>Itens únicos que ainda não estão liberados nem obsoletos, agrupados pelo owner.</dd>' +
               '<dt>Reservado</dt><dd>Item reservado (travado para edição) por alguém. Reservado e parado: reservado e sem modificação há pelo menos o número de dias configurado.</dd>' +
               '<dt>Em revisão</dt><dd>A estrutura usa uma revisão, mas já existe uma revisão mais nova do mesmo item na 3DX (ex.: estrutura na rev. A liberada, rev. B em trabalho).</dd>' +
-              '<dt>Carteira</dt><dd>Lista de montagens acompanhadas juntas, salva neste navegador. Situação: <strong>Crítico</strong> quando há pendente sob pai liberado, item liberado sem desenho liberado ou item reservado e parado; <strong>No prazo</strong> quando itens e desenhos liberados atingem a meta (%) das Configurações; <strong>Atenção</strong> nos demais casos.</dd>' +
+              '<dt>Carteira</dt><dd>Lista de montagens acompanhadas juntas, salva neste navegador. Situação: <strong>Crítico</strong> quando há inconsistência: item pendente sob pai liberado ou item reservado e parado. <strong>Atenção</strong> quando há item liberado sem desenho liberado, item parado, ou itens/desenhos liberados abaixo da meta (%) das Configurações. <strong>No prazo</strong> quando nada disso acontece.</dd>' +
               '<dt>Filtros</dt><dd>Clique numa fatia dos gráficos ou num indicador para ver só aqueles itens.</dd>' +
               '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
             '</dl>' +
@@ -668,25 +672,32 @@
     var res = itensDoFiltro('kpi:reservados'), resPar = res.filter(function (e) { return e.parado; }).length;
     var r = {
       total: total, lib: lib, pctLib: pct(lib, total), naoLib: d.unicos.filter(function (u) { return u.item.state !== 'RELEASED' && u.item.state !== 'OBSOLETE'; }).length,
-      desTotal: rd.total, desLib: rd.lib, desFaltam: rd.faltam, desSem: rd.sem, pctDes: pct(rd.lib, rd.total), desOk: desenhosEstado === 'ok',
+      desTotal: rd.base, desLib: rd.lib, desFaltam: rd.faltam, desSem: rd.sem, pctDes: rd.pct, desOk: desenhosEstado === 'ok',
       parados: d.parados, paiLib: d.paiLib, semDesLib: semDesLib, reservados: res.length, resPar: resPar,
       revisao: itensDoFiltro('kpi:revisao').length, acao: acao.length, thumb: thumbs[d.raiz.item.name] || '', raiz: d.raiz.item
     };
-    var motivos = [];
-    if (r.paiLib) motivos.push(r.paiLib + ' pendente(s) sob pai liberado');
-    if (r.semDesLib) motivos.push(r.semDesLib + ' liberado(s) sem desenho liberado');
-    if (r.resPar) motivos.push(r.resPar + ' reservado(s) e parado(s)');
-    if (motivos.length) { r.sinal = 'vermelho'; r.motivo = motivos.join(' · '); }
-    else if (r.pctLib >= cfg.metaPct && r.pctDes >= cfg.metaPct) { r.sinal = 'verde'; r.motivo = 'dentro da meta de ' + cfg.metaPct + '%'; }
-    else {
-      r.sinal = 'amarelo';
-      var m2 = [];
-      if (r.pctLib < cfg.metaPct) m2.push(r.pctLib + '% liberado');
-      if (r.pctDes < cfg.metaPct) m2.push(r.pctDes + '% dos desenhos liberados');
-      if (r.parados) m2.push(r.parados + ' parado(s)');
-      r.motivo = m2.join(' · ') + ' (meta ' + cfg.metaPct + '%)';
-    }
+    // Crítico: só inconsistência de verdade. Atenção: pendências normais de andamento.
+    var criticos = [], atencao = [];
+    if (r.paiLib) criticos.push(r.paiLib + ' pendente(s) sob pai liberado');
+    if (r.resPar) criticos.push(r.resPar + ' reservado(s) e parado(s)');
+    if (r.semDesLib) atencao.push(r.semDesLib + ' liberado(s) sem desenho liberado');
+    if (r.pctLib < cfg.metaPct) atencao.push(r.pctLib + '% liberado (meta ' + cfg.metaPct + '%)');
+    if (r.desOk && r.pctDes < cfg.metaPct) atencao.push(r.pctDes + '% dos desenhos liberados');
+    if (r.parados) atencao.push(r.parados + ' parado(s)');
+    if (criticos.length) { r.sinal = 'vermelho'; r.motivo = criticos.concat(atencao).join(' · '); }
+    else if (atencao.length) { r.sinal = 'amarelo'; r.motivo = atencao.join(' · '); }
+    else { r.sinal = 'verde'; r.motivo = 'dentro da meta de ' + cfg.metaPct + '%, sem pendências'; }
     return r;
+  }
+
+  // refaz o semáforo de cada montagem da carteira (ex.: depois de mudar as configurações)
+  function recalcularCarteira() {
+    if (carteiraLendo) return;
+    var ids = Object.keys(carteiraDados).filter(function (k) { return carteiraDados[k].foto; });
+    if (!ids.length) return;
+    var atual = dados ? fotografar() : null, ab = aberto, fi = filtro;
+    ids.forEach(function (k) { restaurar(carteiraDados[k].foto); carteiraDados[k].resumo = resumirMontagem(); });
+    if (atual) { restaurar(atual); aberto = ab; filtro = fi; } else { dados = null; bruto = null; }
   }
 
   // lê uma montagem inteira sem mexer na tela
@@ -1014,6 +1025,9 @@
     return '<span class="sm-est e-' + esc(s) + '">' + esc(rotulo(s)) + '</span>';
   }
 
+  // o desenho deste item ainda pede ação? (falta só conta se a configuração exigir desenho em todos os itens)
+  function desenhoPendente(s) { return !!s && s !== 'RELEASED' && s !== 'ERRO' && (cfg.exigirDesenho || s !== 'FALTA'); }
+
   function resumoDesenhos() {
     var itens = dados.unicos.map(function (u) { return u.item; }).concat([dados.raiz.item]);
     var r = { total: itens.length, lib: 0, naoLib: 0, sem: 0 };
@@ -1021,7 +1035,9 @@
       var s = statusDesenho(it);
       if (s === 'RELEASED') r.lib++; else if (s === 'FALTA') r.sem++; else if (s) r.naoLib++;
     });
-    r.faltam = r.sem + r.naoLib;
+    r.faltam = cfg.exigirDesenho ? r.sem + r.naoLib : r.naoLib;
+    r.base = cfg.exigirDesenho ? r.total : r.total - r.sem;   // itens que entram no % de desenhos liberados
+    r.pct = r.base ? pct(r.lib, r.base) : 100;
     return r;
   }
 
@@ -1032,7 +1048,7 @@
     if (desenhosEstado === 'ok') {
       var r = dados.raiz.item;
       dados.unicos.concat([{ item: r, dias: diasDesde(r.modified), pais: {}, parado: false, paiLiberado: false }]).forEach(function (u) {
-        if (u.item.state === 'RELEASED' && statusDesenho(u.item) !== 'RELEASED') {
+        if (u.item.state === 'RELEASED' && desenhoPendente(statusDesenho(u.item))) {
           if (porId[u.item.id]) porId[u.item.id].semDes = true;
           else { var e = { u: u, semDes: true }; lista.push(e); porId[u.item.id] = e; }
         }
@@ -1353,7 +1369,8 @@
       { valor: rd.naoLib, cor: CORES.IN_WORK, rotulo: 'Não liberado', filtro: 'des:NAOLIB' },
       { valor: rd.sem, cor: CORES.FALTA, rotulo: 'Sem desenho', filtro: 'des:FALTA' }
     ];
-    return cab + '<div class="sm-graf">' + rosca(segs, pct(rd.lib, rd.total) + '%', 'liberados', pct(rd.lib, rd.total) + '% dos itens com desenho liberado') + legenda(segs) + '</div></div>';
+    if (!cfg.exigirDesenho) segs[2].rotulo = 'Sem desenho (não conta)';
+    return cab + '<div class="sm-graf">' + rosca(segs, rd.pct + '%', 'liberados', rd.pct + '% dos desenhos liberados') + legenda(segs) + '</div></div>';
   }
 
   function cartaoMeta(d) {
@@ -1402,8 +1419,8 @@
     if (ch === 'des:NAOLIB') return comRaiz.filter(function (e) { var x = sd(e); return x && x !== 'RELEASED' && x !== 'FALTA' && x !== 'ERRO'; });
     if (ch === 'des:FALTA') return comRaiz.filter(function (e) { return sd(e) === 'FALTA'; });
     if (ch === 'kpi:faltamLib') return base.filter(function (e) { return e.item.state !== 'RELEASED' && e.item.state !== 'OBSOLETE'; });
-    if (ch === 'kpi:faltamDes') return comRaiz.filter(function (e) { var x = sd(e); return x && x !== 'RELEASED' && x !== 'ERRO'; });
-    if (ch === 'kpi:semDesLib') return comRaiz.filter(function (e) { var x = sd(e); return e.item.state === 'RELEASED' && x && x !== 'RELEASED' && x !== 'ERRO'; });
+    if (ch === 'kpi:faltamDes') return comRaiz.filter(function (e) { return desenhoPendente(sd(e)); });
+    if (ch === 'kpi:semDesLib') return comRaiz.filter(function (e) { return e.item.state === 'RELEASED' && desenhoPendente(sd(e)); });
     if (ch === 'kpi:parados') return base.filter(function (e) { return e.parado; });
     if (ch === 'kpi:reservados') return comRaiz.filter(function (e) { return reservas[e.item.id]; });
     if (ch === 'kpi:revisao') return comRaiz.filter(function (e) { return revNovas[e.item.id]; });
@@ -1466,7 +1483,7 @@
     // indicadores
     html += '<div class="sm-kpis">' +
       kpi('Faltam liberar', naoLib, 'de ' + total + ' itens únicos', naoLib ? 'atencao' : '', 'kpi:faltamLib') +
-      kpi('Faltam desenhos', desOk ? rd.faltam : '...', desOk ? rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)' : 'consultando', desOk && rd.faltam ? 'atencao' : '', 'kpi:faltamDes') +
+      kpi('Faltam desenhos', desOk ? rd.faltam : '...', desOk ? (cfg.exigirDesenho ? rd.sem + ' sem desenho · ' + rd.naoLib + ' não liberado(s)' : rd.naoLib + ' não liberado(s) · sem desenho não conta') : 'consultando', desOk && rd.faltam ? 'atencao' : '', 'kpi:faltamDes') +
       kpi('Liberados sem desenho', desOk ? semDesLib : '...', 'liberado sem desenho liberado', desOk && semDesLib ? 'alerta' : '', 'kpi:semDesLib') +
       kpi('Parados', d.parados, cfg.limite + ' dias ou mais sem alteração', d.parados ? 'atencao' : '', 'kpi:parados') +
       kpi('Reservados', exOk ? nRes : '...', exOk ? (nResPar ? nResPar + ' reservado(s) e parado(s)' : 'travados para edição') : 'consultando', exOk && nResPar ? 'atencao' : '', 'kpi:reservados') +
@@ -1684,13 +1701,17 @@
     var l = parseInt(lerLocal('sm-limite'), 10); if (l >= 0) cfg.limite = l;
     var m = parseInt(lerLocal('sm-meta'), 10); if (m > 0 && m <= 100) cfg.metaPct = m;
     cfg.metaData = lerLocal('sm-data') || '';
-    $('sm-limite').value = cfg.limite; $('sm-meta').value = cfg.metaPct; $('sm-data').value = cfg.metaData;
+    cfg.exigirDesenho = lerLocal('sm-exigir') !== '0';
+    $('sm-limite').value = cfg.limite; $('sm-meta').value = cfg.metaPct; $('sm-data').value = cfg.metaData; $('sm-exigir').checked = cfg.exigirDesenho;
   }
   function mudouCfg() {
     var l = parseInt($('sm-limite').value, 10), m = parseInt($('sm-meta').value, 10);
     if (l >= 0) { cfg.limite = l; gravarLocal('sm-limite', String(l)); }
     if (m > 0 && m <= 100) { cfg.metaPct = m; gravarLocal('sm-meta', String(m)); }
     cfg.metaData = $('sm-data').value || ''; gravarLocal('sm-data', cfg.metaData);
+    cfg.exigirDesenho = $('sm-exigir').checked; gravarLocal('sm-exigir', cfg.exigirDesenho ? '1' : '0');
+    recalcularCarteira();
+    if (modo === 'carteira') { if (!carteiraLendo) desenharCarteira(); return; }
     if (bruto) {
       var antes = aberto;
       processar();
@@ -1729,7 +1750,7 @@
       if (abrir) painel.removeAttribute('hidden'); else painel.setAttribute('hidden', '');
       this.setAttribute('aria-expanded', abrir ? 'true' : 'false');
     });
-    ['sm-limite', 'sm-meta', 'sm-data'].forEach(function (id) { $(id).addEventListener('change', mudouCfg); });
+    ['sm-limite', 'sm-meta', 'sm-data', 'sm-exigir'].forEach(function (id) { $(id).addEventListener('change', mudouCfg); });
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
