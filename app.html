@@ -187,6 +187,8 @@
   .sm-soltar { display: none; position: absolute; inset: 8px; z-index: 50; border: 3px dashed var(--destaque); border-radius: 16px; background: rgba(26,26,26,0.82); align-items: center; justify-content: center; pointer-events: none; }
   .sm-soltar span { font-size: 18px; font-weight: 700; color: var(--destaque); background: #1A1A1A; padding: 12px 20px; border-radius: 10px; border: 1px solid var(--borda); }
   .sm-root.sm-soltando .sm-soltar { display: flex; position: fixed; }
+  [draggable="true"] { -webkit-user-drag: element; }
+  .sm-link3d[draggable="true"]:active, .sm-link2d[draggable="true"]:active { cursor: grabbing; }
   .sm-modos { display: inline-flex; margin-left: 8px; background: #222528; border: 1px solid var(--borda); border-radius: 9px; padding: 3px; gap: 2px; }
   .sm-modo { border: 0; background: none; color: var(--texto3); font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .sm-modo:hover { color: var(--titulo); }
@@ -268,7 +270,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v1.9 (04/11/2026)';
+  var VERSAO = 'v2.0 (04/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -539,6 +541,7 @@
       mostrarAviso('');
       var ultima = lerLocal('sm-ultima');
       if (ultima && !$('sm-nome').value) $('sm-nome').value = ultima;
+      if (conteudoInicial.length) { var ci = conteudoInicial; conteudoInicial = []; ultimoSoltar = 0; receberSoltos(ci); }
     }).catch(function (e) {
       anotar('Conexão', 'ERRO', textoErro(e));
       gravarLocal('sm-space', '');
@@ -799,7 +802,7 @@
       '<th class="num">Pedem ação</th><th class="num">Parados</th><th class="num">Reservados</th><th class="num">Em revisão</th><th></th></tr></thead><tbody>';
     res.forEach(function (x) {
       var m = x.m, c = x.c, r = c && c.resumo;
-      var nome = '<button type="button" class="sm-link3d forte sm-cart-abrir" data-id="' + esc(m.id) + '"' + (r ? '' : ' disabled') + '>' + esc(m.title || m.name) + '</button><div class="sm-mono sm-cart-sub">' + esc(m.name) + ' · rev. ' + esc(m.revision) + '</div>';
+      var nome = '<button type="button" draggable="true" class="sm-link3d forte sm-cart-abrir" data-id="' + esc(m.id) + '"' + (r ? '' : ' disabled') + '>' + esc(m.title || m.name) + '</button><div class="sm-mono sm-cart-sub">' + esc(m.name) + ' · rev. ' + esc(m.revision) + '</div>';
       var tirar = '<button type="button" class="sm-icone-btn sm-cart-tira" data-id="' + esc(m.id) + '" aria-label="Tirar ' + esc(m.title || m.name) + ' da carteira" title="Tirar da carteira">' + ICONE_X + '</button>';
       if (!r) {
         html += '<tr><td><span class="sm-sinal s-cinza">' + (c && c.erro ? 'Erro' : 'Não lida') + '</span></td><td></td><td>' + nome + (c && c.erro ? '<div class="sm-erro-txt">' + esc(c.erro) + '</div>' : '') + '</td><td colspan="7"><span class="sm-vazio">' + (c && c.erro ? 'não consegui ler esta montagem' : 'clique em Atualizar para ler') + '</span></td><td>' + tirar + '</td></tr>';
@@ -807,7 +810,7 @@
       }
       html += '<tr' + (r.sinal === 'vermelho' ? ' class="marcada"' : '') + '>' +
         '<td><span class="sm-sinal" style="--cor:' + COR_SINAL[r.sinal] + '" title="' + esc(r.motivo) + '"><i></i>' + NOME_SINAL[r.sinal] + '</span><div class="sm-cart-motivo">' + esc(r.motivo) + '</div></td>' +
-        '<td class="sm-celthumb"><button type="button" class="sm-thumb-btn sm-cart-abrir" data-id="' + esc(m.id) + '" aria-label="Abrir ' + esc(m.title || m.name) + '"><span class="sm-thumb">' + (r.thumb ? '<img src="' + esc(r.thumb) + '" alt="" />' : '<span class="sm-vazio">—</span>') + '</span></button></td>' +
+        '<td class="sm-celthumb"><button type="button" draggable="true" class="sm-thumb-btn sm-cart-abrir" data-id="' + esc(m.id) + '" aria-label="Abrir ' + esc(m.title || m.name) + '"><span class="sm-thumb">' + (r.thumb ? '<img src="' + esc(r.thumb) + '" alt="" />' : '<span class="sm-vazio">—</span>') + '</span></button></td>' +
         '<td>' + nome + '</td>' +
         '<td><span class="sm-est e-' + esc(r.raiz.state) + '">' + esc(rotulo(r.raiz.state)) + '</span></td>' +
         '<td>' + barraPct(r.pctLib, r.lib + '/' + r.total) + '</td>' +
@@ -1017,6 +1020,87 @@
 
   // ---------- arrastar e soltar (drag and drop da 3DX) ----------
   // A 3DX manda um pacote 3DXContent: { protocol, data: { items: [ { objectId, objectType, displayName, ... } ] } }
+  // pacote 3DXContent no formato que os apps da 3DX entendem
+  function pacote3DX(objs) {
+    var f = infoFed() || {};
+    return {
+      protocol: '3DXContent', version: '1.1', source: 'StatusMontagens', widgetId: (typeof widget !== 'undefined' && widget.id) || '',
+      data: { items: objs.map(function (o) {
+        var des = o.type === 'Drawing';
+        return { envId: f.tenant || '', serviceId: '3DSpace', contextId: estado.ctx || '', objectId: o.id, objectType: des ? 'Drawing' : 'VPMReference',
+          displayName: o.title || o.name || '', displayType: des ? 'Drawing' : 'Physical Product' };
+      }) }
+    };
+  }
+
+  // qual objeto da 3DX um elemento da tela representa (para arrastar para fora)
+  function objetoDoElemento(el) {
+    var idDes = el.getAttribute('data-des');
+    if (idDes) {
+      var d = (desenhosLista[el.getAttribute('data-item')] || []).filter(function (x) { return x.id === idDes; })[0];
+      return d ? { id: d.id, type: 'Drawing', title: d.title, name: d.name } : null;
+    }
+    var id = el.getAttribute('data-id');
+    if (!id) return null;
+    if (dados) { var it = itemPorId(id); if (it) return it; }
+    var m = listaAtual().filter(function (x) { return x.id === id; })[0];
+    return m || null;
+  }
+
+  var arrastandoDeDentro = false;
+  function ativarArrastarParaFora() {
+    var area = $('sm-conteudo');
+    area.addEventListener('dragstart', function (ev) {
+      var el = ev.target && ev.target.closest ? ev.target.closest('[draggable="true"]') : null;
+      if (!el) return;
+      var obj = objetoDoElemento(el);
+      if (!obj) { ev.preventDefault(); return; }
+      var txt = JSON.stringify(pacote3DX([obj]));
+      try { ev.dataTransfer.setData('text', txt); } catch (x) { }
+      try { ev.dataTransfer.setData('text/plain', txt); } catch (x) { }
+      ev.dataTransfer.effectAllowed = 'copy';
+      arrastandoDeDentro = true;
+      anotar('Arrastar para fora', 'OK', (obj.title || obj.name) + (obj.type === 'Drawing' ? ' (desenho)' : ''));
+    });
+    document.addEventListener('dragend', function () { arrastandoDeDentro = false; mostrarSoltar(false); });
+  }
+
+  // ---------- "Abrir com": a 3DX abre o app já com um objeto ----------
+  var conteudoInicial = [], conteudoVisto = '';
+  function procurarConteudoInicial() {
+    var achados = [], diag = {};
+    function testar(origem, valor) {
+      if (!valor) return;
+      var v = valor;
+      if (typeof v === 'string') { diag[origem] = v.slice(0, 160); try { if (/^%7B/i.test(v)) v = decodeURIComponent(v); } catch (x) { } }
+      else diag[origem] = '(objeto)';
+      var itens = lerPacote3DX(v);
+      if (itens.length && !achados.length) { achados = itens; diag.usado = origem; }
+    }
+    try {
+      if (typeof widget !== 'undefined') {
+        if (widget.getValue) { ['X3DContentId', 'X3DContent', 'content', 'contentId'].forEach(function (k) { try { testar('widget.getValue(' + k + ')', widget.getValue(k)); } catch (x) { } }); }
+        if (widget.data) { diag.widgetData = Object.keys(widget.data).join(','); ['X3DContentId', 'X3DContent', 'content'].forEach(function (k) { testar('widget.data.' + k, widget.data[k]); }); }
+      }
+    } catch (x) { diag.erro = String(x); }
+    try {
+      var q = (location.search || '') + '&' + (location.hash || '').replace(/^#/, '');
+      var m = /(?:^|[?&\/])X3DContentId=([^&]+)/.exec(q);
+      if (m) testar('url', m[1]);
+      diag.url = (location.search || '').replace(/token=[^&]+/, 'token=…').slice(0, 200);
+    } catch (x) { }
+    amostra.abrirCom = diag;
+    return achados;
+  }
+  function verificarAbrirCom() {
+    var itens = procurarConteudoInicial();
+    var chave = itens.map(function (i) { return i.objectId; }).join(',');
+    if (!itens.length || chave === conteudoVisto) return;
+    conteudoVisto = chave;
+    anotar('Abrir com', 'OK', itens.map(function (i) { return i.displayName || i.objectId; }).join(', '));
+    if (conectado) receberSoltos(itens); else conteudoInicial = itens;
+  }
+
   function lerPacote3DX(texto) {
     if (!texto) return [];
     var obj = null;
@@ -1070,11 +1154,12 @@
     if (!raiz) return;
     // 1) caminho nativo do navegador (funciona entre quadros do dashboard)
     var contador = 0;
-    raiz.addEventListener('dragenter', function (ev) { ev.preventDefault(); contador++; mostrarSoltar(true); });
+    raiz.addEventListener('dragenter', function (ev) { ev.preventDefault(); if (arrastandoDeDentro) return; contador++; mostrarSoltar(true); });
     raiz.addEventListener('dragover', function (ev) { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'copy'; } catch (x) { } });
     raiz.addEventListener('dragleave', function () { contador = Math.max(0, contador - 1); if (!contador) mostrarSoltar(false); });
     raiz.addEventListener('drop', function (ev) {
       ev.preventDefault(); contador = 0;
+      if (arrastandoDeDentro) { mostrarSoltar(false); return; }
       var dt = ev.dataTransfer, txt = '';
       try { txt = dt.getData('text') || dt.getData('text/plain') || dt.getData('Text'); } catch (x) { }
       var itens = lerPacote3DX(txt);
@@ -1090,9 +1175,9 @@
         require(['DS/DataDragAndDrop/DataDragAndDrop'], function (DnD) {
           if (!DnD || !DnD.droppable) return;
           DnD.droppable(raiz, {
-            enter: function () { mostrarSoltar(true); },
+            enter: function () { if (!arrastandoDeDentro) mostrarSoltar(true); },
             leave: function () { mostrarSoltar(false); },
-            drop: function (dados) { receberSoltos(lerPacote3DX(dados)); }
+            drop: function (dados) { if (!arrastandoDeDentro) receberSoltos(lerPacote3DX(dados)); }
           });
           anotar('Arrastar e soltar', 'OK', 'módulo da 3DX ativo');
         }, function () { });
@@ -1340,7 +1425,7 @@
   }
 
   function link3D(it, texto, forte) {
-    return '<button type="button" class="sm-link3d' + (forte ? ' forte' : '') + '" data-id="' + esc(it.id) + '" title="Abrir ' + esc(it.title || it.name) + ' no 3DPlay (nova aba)">' + esc(texto) + '</button>';
+    return '<button type="button" draggable="true" class="sm-link3d' + (forte ? ' forte' : '') + '" data-id="' + esc(it.id) + '" title="Clique para abrir no 3DPlay · arraste para outro app da 3DX">' + esc(texto) + '</button>';
   }
   function itemPorId(id) {
     if (dados.raiz.item.id === id) return dados.raiz.item;
@@ -1355,7 +1440,7 @@
       var txt = thumbsEstado === 'carregando' && !(item.name in thumbs) ? '...' : (thumbsEstado === 'erro' ? 'erro' : 'sem imagem');
       miolo = '<div class="sm-thumb vazio">' + txt + '</div>';
     }
-    return '<button type="button" class="sm-thumb-btn" data-idx="' + idx + '" aria-label="Ver detalhes de ' + esc(item.title || item.name) + '">' + miolo + '</button>';
+    return '<button type="button" class="sm-thumb-btn" draggable="true" data-id="' + esc(item.id) + '" data-idx="' + idx + '" aria-label="Ver detalhes de ' + esc(item.title || item.name) + '">' + miolo + '</button>';
   }
 
   // ---------- janela de detalhes do item ----------
@@ -1737,7 +1822,7 @@
     // cabeçalho da montagem
     var img = thumbs[r.name];
     html += '<div class="sm-cartao sm-cab">' +
-      '<button type="button" class="sm-thumb-btn" data-idx="0" aria-label="Ver detalhes da montagem"><div class="sm-cab-img">' + (img ? '<img src="' + esc(img) + '" alt="" />' : '<span class="sm-vazio">...</span>') + '</div></button>' +
+      '<button type="button" class="sm-thumb-btn" draggable="true" data-id="' + esc(r.id) + '" data-idx="0" aria-label="Ver detalhes da montagem"><div class="sm-cab-img">' + (img ? '<img src="' + esc(img) + '" alt="" />' : '<span class="sm-vazio">...</span>') + '</div></button>' +
       '<div style="min-width:0;flex:1 1 300px"><h2>' + link3D(r, r.title || r.name) + '</h2>' +
       '<div class="sm-cab-meta"><span class="sm-mono">' + esc(r.name) + '</span><span>Rev. ' + esc(r.revision) + '</span>' +
       '<span class="sm-est e-' + esc(r.state) + '">' + esc(rotulo(r.state)) + '</span><span>Owner ' + esc(r.owner) + '</span>' +
@@ -1857,7 +1942,7 @@
     return '<tr class="sm-linha2d">' +
       '<td class="num">' + (n.nivel + 1) + '</td>' +
       '<td><span class="sm-nome" style="padding-left:' + recuo + 'px" title="' + esc(d.name) + '"><span class="sm-tg-vazio"></span>' +
-        '<span class="sm-tag t-2d">2D</span><button type="button" class="sm-link2d" data-item="' + esc(n.item.id) + '" data-des="' + esc(d.id) + '" title="Abrir o desenho no 3DPlay">' + esc(d.title || d.name) + '</button><span class="sm-filhos">desenho de ' + esc(n.item.title || n.item.name) + '</span></span></td>' +
+        '<span class="sm-tag t-2d">2D</span><button type="button" class="sm-link2d" draggable="true" data-item="' + esc(n.item.id) + '" data-des="' + esc(d.id) + '" title="Abrir o desenho no 3DPlay">' + esc(d.title || d.name) + '</button><span class="sm-filhos">desenho de ' + esc(n.item.title || n.item.name) + '</span></span></td>' +
       '<td class="sm-celthumb"><div class="sm-thumb vazio" style="color:#9AA0A6">' + ICONE_2D + '</div></td>' +
       '<td>' + esc(d.revision) + '</td>' +
       '<td><span class="sm-est e-' + esc(d.state) + '">' + esc(rotulo(d.state)) + '</span></td>' +
@@ -1999,6 +2084,9 @@
     registro = [];
     carregarCfg();
     ativarSoltar();
+    ativarArrastarParaFora();
+    verificarAbrirCom();
+    try { if (typeof widget !== 'undefined' && widget.addEvent) widget.addEvent('onRefresh', verificarAbrirCom); } catch (x) { }
     $('sm-buscar').addEventListener('click', buscar);
     $('sm-nome').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
     lerCarteiras();
