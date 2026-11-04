@@ -183,6 +183,10 @@
   .sm-check { display: flex; gap: 10px; align-items: flex-start; max-width: 460px; cursor: pointer; font-size: 13px; color: var(--texto); }
   .sm-check input { width: 18px; height: 18px; margin-top: 2px; accent-color: #BAD532; flex: none; }
   .sm-check small { display: block; color: var(--texto3); font-size: 12px; margin-top: 2px; line-height: 1.4; }
+  .sm-root { position: relative; }
+  .sm-soltar { display: none; position: absolute; inset: 8px; z-index: 50; border: 3px dashed var(--destaque); border-radius: 16px; background: rgba(26,26,26,0.82); align-items: center; justify-content: center; pointer-events: none; }
+  .sm-soltar span { font-size: 18px; font-weight: 700; color: var(--destaque); background: #1A1A1A; padding: 12px 20px; border-radius: 10px; border: 1px solid var(--borda); }
+  .sm-root.sm-soltando .sm-soltar { display: flex; position: fixed; }
   .sm-modos { display: inline-flex; margin-left: 8px; background: #222528; border: 1px solid var(--borda); border-radius: 9px; padding: 3px; gap: 2px; }
   .sm-modo { border: 0; background: none; color: var(--texto3); font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .sm-modo:hover { color: var(--titulo); }
@@ -264,7 +268,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v1.7 (04/11/2026)';
+  var VERSAO = 'v1.8 (04/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
@@ -309,7 +313,7 @@
   var ICONE_ATUALIZAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"></path></svg>';
 
   var TEMPLATE =
-    '<div class="sm-root"><div class="sm-app">' +
+    '<div class="sm-root"><div class="sm-soltar" aria-hidden="true"><span id="sm-soltar-dica">Solte aqui</span></div><div class="sm-app">' +
       '<div class="sm-topo"><div class="sm-marca"><img class="sm-logo" src="' + LOGO_SKA + '" alt="SKA + GoEngineer" /><span class="sm-sep" aria-hidden="true"></span><h1>Status de Montagens</h1><span class="sm-selo">' + VERSAO + '</span>' +
         '<div class="sm-modos" role="group" aria-label="Visão"><button type="button" class="sm-modo" id="sm-modo-montagem" aria-pressed="true">Montagem</button><button type="button" class="sm-modo" id="sm-modo-carteira" aria-pressed="false">Carteira</button></div></div>' +
         '<span class="sm-conexao" id="sm-conexao">Conectando à 3DEXPERIENCE...</span></div>' +
@@ -335,7 +339,7 @@
       '<div class="sm-nova-versao" id="sm-nova-versao" hidden></div>' +
       '<div class="sm-corpo">' +
         '<div id="sm-aviso"></div>' +
-        '<div id="sm-conteudo"><div class="sm-inicio"><strong>Nenhuma montagem carregada</strong>Busque uma montagem pelo nome ou título para ver o status.</div></div>' +
+        '<div id="sm-conteudo"><div class="sm-inicio"><strong>Nenhuma montagem carregada</strong>Busque uma montagem pelo nome ou título, ou arraste uma montagem da 3DX para cá.</div></div>' +
         '<div class="sm-rodape">' +
           '<details class="sm-diag"><summary>Como os números são calculados</summary>' +
             '<dl class="sm-def">' +
@@ -649,7 +653,7 @@
     if (semDesenhar) return;
     if (m === 'carteira') { desenharCarteira(); if (listaAtual().length && listaAtual().some(function (x) { return !carteiraDados[x.id]; })) lerCarteira(false); }
     else if (dados) desenhar();
-    else $('sm-conteudo').innerHTML = '<div class="sm-inicio"><strong>Nenhuma montagem carregada</strong>Busque uma montagem pelo nome ou título para ver o status.</div>';
+    else $('sm-conteudo').innerHTML = '<div class="sm-inicio"><strong>Nenhuma montagem carregada</strong>Busque uma montagem pelo nome ou título, ou arraste uma montagem da 3DX para cá.</div>';
   }
 
   // guarda e restaura o estado de uma montagem lida
@@ -765,7 +769,7 @@
       '</div>';
 
     if (!lista.length) {
-      $('sm-conteudo').innerHTML = html + '<div class="sm-inicio"><strong>Carteira vazia</strong>Adicione as montagens que você quer acompanhar juntas. A lista fica salva neste navegador.</div>';
+      $('sm-conteudo').innerHTML = html + '<div class="sm-inicio"><strong>Carteira vazia</strong>Adicione as montagens que você quer acompanhar juntas (pela busca ou arrastando da 3DX). A lista fica salva neste navegador.</div>';
       return;
     }
     var res = lista.map(function (m) { return { m: m, c: carteiraDados[m.id] }; });
@@ -834,6 +838,91 @@
     lerCarteira(false);
     if (!carteiraLendo) desenharCarteira();
   }
+  // ---------- arrastar e soltar (drag and drop da 3DX) ----------
+  // A 3DX manda um pacote 3DXContent: { protocol, data: { items: [ { objectId, objectType, displayName, ... } ] } }
+  function lerPacote3DX(texto) {
+    if (!texto) return [];
+    var obj = null;
+    if (typeof texto === 'object') obj = texto;
+    else { try { obj = JSON.parse(texto); } catch (x) { return []; } }
+    var itens = (obj && obj.data && obj.data.items) || (obj && obj.items) || [];
+    return itens.filter(function (i) { return i && i.objectId; });
+  }
+
+  var ultimoSoltar = 0;
+  function receberSoltos(itens) {
+    if (Date.now() - ultimoSoltar < 800) return;   // o mesmo arraste pode chegar pelos dois caminhos
+    ultimoSoltar = Date.now();
+    mostrarSoltar(false);
+    if (!itens.length) { mostrarAviso('Não reconheci o que foi solto. Arraste uma montagem ou peça da 3DX (3DSearch, árvore, outro app).', 'erro'); return; }
+    if (!conectado) { mostrarAviso('Aguarde a conexão com a 3DEXPERIENCE e solte de novo.', 'erro'); return; }
+    if (carteiraLendo) { mostrarAviso('Aguarde a carteira terminar de ler.', 'erro'); return; }
+    anotar('Arrastar e soltar', '...', itens.map(function (i) { return (i.displayName || i.objectId) + ' (' + (i.objectType || '?') + ')'; }).join(', '));
+    var lista = modo === 'carteira' ? itens : itens.slice(0, 1);
+    Promise.all(lista.map(function (i) {
+      return requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(i.objectId))
+        .then(function (r) { return (r && r.member && r.member[0]) || null; })
+        .catch(function () { return null; });
+    })).then(function (achados) {
+      var ok = achados.filter(Boolean), falhou = lista.length - ok.length;
+      anotar('Arrastar e soltar', ok.length ? 'OK' : 'ERRO', ok.length + ' reconhecido(s)' + (falhou ? ', ' + falhou + ' não é peça/montagem' : ''));
+      if (!ok.length) { mostrarAviso('O objeto solto não é uma peça ou montagem da Engenharia (Physical Product). Arraste uma montagem.', 'erro'); return; }
+      mostrarAviso(falhou ? falhou + ' objeto(s) ignorado(s): não são peça ou montagem.' : '');
+      if (modo === 'carteira') {
+        var l = listaAtual();
+        ok.forEach(function (m) { if (!l.some(function (x) { return x.id === m.id; })) l.push({ id: m.id, name: m.name, title: m.title, revision: m.revision, state: m.state, type: m.type, owner: m.owner, modified: m.modified }); });
+        gravarCarteiras(); carteiraBusca = [];
+        desenharCarteira(); lerCarteira(false);
+      } else {
+        $('sm-nome').value = ok[0].title || ok[0].name || '';
+        ler(ok[0]);
+      }
+    });
+  }
+
+  function mostrarSoltar(on) {
+    var raiz = document.querySelector('.sm-root');
+    if (!raiz) return;
+    raiz.classList.toggle('sm-soltando', !!on);
+    var dica = $('sm-soltar-dica');
+    if (dica) dica.textContent = modo === 'carteira' ? 'Solte aqui para adicionar à carteira' : 'Solte aqui para ver o status desta montagem';
+  }
+
+  function ativarSoltar() {
+    var raiz = document.querySelector('.sm-root');
+    if (!raiz) return;
+    // 1) caminho nativo do navegador (funciona entre quadros do dashboard)
+    var contador = 0;
+    raiz.addEventListener('dragenter', function (ev) { ev.preventDefault(); contador++; mostrarSoltar(true); });
+    raiz.addEventListener('dragover', function (ev) { ev.preventDefault(); try { ev.dataTransfer.dropEffect = 'copy'; } catch (x) { } });
+    raiz.addEventListener('dragleave', function () { contador = Math.max(0, contador - 1); if (!contador) mostrarSoltar(false); });
+    raiz.addEventListener('drop', function (ev) {
+      ev.preventDefault(); contador = 0;
+      var dt = ev.dataTransfer, txt = '';
+      try { txt = dt.getData('text') || dt.getData('text/plain') || dt.getData('Text'); } catch (x) { }
+      var itens = lerPacote3DX(txt);
+      if (!itens.length) {
+        // às vezes vem só um id solto ou uma lista de tipos diferentes
+        try { (dt.types || []).forEach(function (t) { if (!itens.length) itens = lerPacote3DX(dt.getData(t)); }); } catch (x) { }
+      }
+      receberSoltos(itens);
+    });
+    // 2) módulo oficial da 3DX, quando o widget roda dentro do dashboard
+    if (typeof require === 'function') {
+      try {
+        require(['DS/DataDragAndDrop/DataDragAndDrop'], function (DnD) {
+          if (!DnD || !DnD.droppable) return;
+          DnD.droppable(raiz, {
+            enter: function () { mostrarSoltar(true); },
+            leave: function () { mostrarSoltar(false); },
+            drop: function (dados) { receberSoltos(lerPacote3DX(dados)); }
+          });
+          anotar('Arrastar e soltar', 'OK', 'módulo da 3DX ativo');
+        }, function () { });
+      } catch (x) { }
+    }
+  }
+
   function cartBuscar() {
     var termo = (($('sm-cart-nome') || {}).value || '').trim();
     if (!termo || !conectado) return;
@@ -1732,6 +1821,7 @@
     raizDom.innerHTML = TEMPLATE;
     registro = [];
     carregarCfg();
+    ativarSoltar();
     $('sm-buscar').addEventListener('click', buscar);
     $('sm-nome').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
     lerCarteiras();
