@@ -273,9 +273,23 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v2.1 (04/11/2026)';
+  var VERSAO = 'v2.2 (05/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
+  // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
+  // (o quadro do widget recebe widgetDomain=https://<tenant>-<região>-ifwe.3dexperience.3ds.com/)
+  function lerSpaceDoDashboard() {
+    var fontes = [];
+    try { fontes.push(decodeURIComponent(location.search || '')); } catch (x) { fontes.push(location.search || ''); }
+    try { fontes.push(document.referrer || ''); } catch (x) { }
+    try { if (window.parent && window.parent !== window) fontes.push(window.parent.location.href); } catch (x) { }
+    try { if (window.top && window.top !== window) fontes.push(window.top.location.href); } catch (x) { }
+    for (var i = 0; i < fontes.length; i++) {
+      var m = /https:\/\/([a-z0-9]+-[a-z0-9]+)-ifwe\.([a-z0-9.\-]+?)(?:\/|$|[?&#:])/i.exec(fontes[i]);
+      if (m) return 'https://' + m[1].toLowerCase() + '-space.' + m[2] + '/enovia';
+    }
+    return '';
+  }
   var SPACE_PADRAO = 'https://oi000543896-us1-space.3dexperience.3ds.com/enovia';
   var LIMITE_LINHAS = 3000;
 
@@ -510,6 +524,7 @@
   function conectar() {
     var origem = '', endereco = '';
     if ((endereco = lerSpaceDoLink())) origem = 'do link';
+    else if ((endereco = lerSpaceDoDashboard())) origem = 'do dashboard';
     else if ((endereco = lerLocal('sm-space'))) origem = 'salvo';
     else { endereco = SPACE_PADRAO; origem = 'padrão'; }
     anotar('Endereço do 3DSpace', 'OK', origem + ' · ' + endereco);
