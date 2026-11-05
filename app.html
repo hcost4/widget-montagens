@@ -192,6 +192,8 @@
   .sm-kpi.minhas { border-color: rgba(186,213,50,0.55); background: linear-gradient(180deg, rgba(186,213,50,0.10), rgba(186,213,50,0.02)); }
   .sm-kpi.minhas .v { color: var(--destaque); }
   .t-minha { background: rgba(186,213,50,0.18); color: var(--destaque); }
+  .sm-acoes-aviso { display: inline-flex; gap: 8px; flex-wrap: wrap; margin-left: 8px; vertical-align: middle; }
+  .sm-acoes-aviso .sm-btn, .sm-acoes-aviso .sm-btn2 { height: 34px; }
   .sm-modos { display: inline-flex; margin-left: 8px; background: #222528; border: 1px solid var(--borda); border-radius: 9px; padding: 3px; gap: 2px; }
   .sm-modo { border: 0; background: none; color: var(--texto3); font: inherit; font-size: 13px; font-weight: 600; padding: 5px 12px; border-radius: 6px; cursor: pointer; }
   .sm-modo:hover { color: var(--titulo); }
@@ -273,7 +275,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v2.4 (05/11/2026)';
+  var VERSAO = 'v2.5 (05/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -378,7 +380,7 @@
               '<dt>Em revisão</dt><dd>A estrutura usa uma revisão, mas já existe uma revisão mais nova do mesmo item na 3DX (ex.: estrutura na rev. A liberada, rev. B em trabalho).</dd>' +
               '<dt>Carteira</dt><dd>Lista de montagens acompanhadas juntas, salva neste navegador. Situação: <strong>Crítico</strong> quando há inconsistência: item pendente sob pai liberado ou item reservado e parado. <strong>Atenção</strong> quando há item liberado sem desenho liberado, item parado, ou itens/desenhos liberados abaixo da meta (%) das Configurações. <strong>No prazo</strong> quando nada disso acontece.</dd>' +
               '<dt>Minhas pendências</dt><dd>Itens em que você é o owner e que ainda não estão liberados (ou liberados com desenho pendente), mais itens reservados por você.</dd>' +
-              '<dt>PDFs dos desenhos</dt><dd>Baixa num .zip os PDFs que já existem na 3DX (saídas derivadas) de todos os desenhos da estrutura. Não gera PDF novo. Desenhos sem PDF aparecem no LEIA-ME do zip. Precisa de um papel com direito de exportar (normalmente Leader); o widget procura esse papel sozinho.</dd>' +
+              '<dt>PDFs dos desenhos</dt><dd>Baixa num .zip os PDFs que já existem na 3DX (saídas derivadas) de todos os desenhos da estrutura. Se algum desenho não tiver PDF, o widget pergunta se deve pedir à 3DX para gerar (regra sob demanda do Derived Format Converter) e espera até ~5 min. O que não ficar pronto aparece no LEIA-ME do zip. Precisa de um papel com direito de exportar (normalmente Leader); o widget procura esse papel sozinho.</dd>' +
               '<dt>Filtros</dt><dd>Clique numa fatia dos gráficos ou num indicador para ver só aqueles itens.</dd>' +
               '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
             '</dl>' +
@@ -959,24 +961,33 @@
     return lista;
   }
 
-  function pedirTicket(desId, arqId) {
-    var url = estado.spaceUrl + '/resources/v1/modeler/dsdo/dsdo:DerivedOutputs/' + encodeURIComponent(desId) + '/dsdo:DerivedOutputFiles/' + encodeURIComponent(arqId) + '/DownloadTicket';
+  // tenta a chamada com cada contexto (papel) até um com direito de exportar/converter aceitar
+  function comContextoExport(fazer) {
     var ctxs = contextosParaExportar(), i = 0, ultimoErro = null;
     function tentar() {
-      if (i >= ctxs.length) return Promise.reject(ultimoErro || new Error('sem contexto com direito de exportar'));
+      if (i >= ctxs.length) return Promise.reject(ultimoErro || new Error('nenhum papel com direito de exportar'));
       var c = ctxs[i++];
-      return requisicao('POST', url, {}, c).then(function (r) {
-        var de = r && r.data && r.data.dataelements;
-        if (!de || !de.ticket) throw new Error('resposta sem ticket');
-        if (ctxExport !== c) { ctxExport = c; anotar('PDFs dos desenhos', 'OK', 'contexto com direito de exportar: ' + c.replace('ctx::', '')); }
-        return de;
+      return fazer(c).then(function (r) {
+        if (ctxExport !== c) { ctxExport = c; anotar('PDFs dos desenhos', 'OK', 'papel usado: ' + c.replace('ctx::', '')); }
+        return r;
       }).catch(function (e) {
         ultimoErro = e;
-        if (/Export rights|exportar|403|400/i.test(String(e && e.message))) return tentar();
+        if (/Export rights|right|permiss|access|403|400|401/i.test(String(e && e.message))) return tentar();
         throw e;
       });
     }
     return tentar();
+  }
+
+  function pedirTicket(desId, arqId) {
+    var url = estado.spaceUrl + '/resources/v1/modeler/dsdo/dsdo:DerivedOutputs/' + encodeURIComponent(desId) + '/dsdo:DerivedOutputFiles/' + encodeURIComponent(arqId) + '/DownloadTicket';
+    return comContextoExport(function (c) {
+      return requisicao('POST', url, {}, c).then(function (r) {
+        var de = r && r.data && r.data.dataelements;
+        if (!de || !de.ticket) throw new Error('resposta sem ticket');
+        return de;
+      });
+    });
   }
 
   function baixarArquivo(de) {
@@ -996,78 +1007,149 @@
 
   function nomeSeguro(t) { return String(t || 'desenho').replace(/[\\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 120); }
 
+  function lerSaidas(d) {
+    return requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dsdo/dsdo:DerivedOutputs/' + encodeURIComponent(d.id))
+      .then(function (r) { return (((r && r.member && r.member[0]) || {}).derivedOutputs || {}).derivedOutputfiles || []; });
+  }
+
+  // regra da 3DX que converte desenho em PDF sob demanda (prefere a de SOLIDWORKS)
+  var regraPdf = null;
+  function acharRegraPdf() {
+    if (regraPdf) return Promise.resolve(regraPdf);
+    return comContextoExport(function (c) {
+      return requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dsdo/dsdo:DerivedOutputRules?category=&ruleType=ondemand', null, c);
+    }).then(function (r) {
+      var regras = ((r && r.member) || []).map(function (m) { return m.derivedOutputRule || m; }).filter(function (g) {
+        return String(g.target || g.targetToDisplay).toUpperCase() === 'PDF' && /drawing/i.test(g.sourceType || g.sourceToDisplay || '') && !/inactive/i.test(g.activation || '');
+      });
+      regras.sort(function (a, b) { return (/SLDDRW/i.test(b.source) ? 1 : 0) - (/SLDDRW/i.test(a.source) ? 1 : 0); });
+      regraPdf = regras[0] || null;
+      amostra.regrasPdf = regras.map(function (g) { return g.category + ' ' + g.source + '→PDF'; });
+      return regraPdf;
+    });
+  }
+
+  // pede à 3DX para gerar os PDFs e espera ficarem prontos (até ~5 min)
+  function gerarPdfs(lista, progresso) {
+    return acharRegraPdf().then(function (regra) {
+      if (!regra) throw new Error('este tenant não tem regra de conversão sob demanda de desenho para PDF (Derived Format Converter)');
+      var corpo = { conversionRequests: lista.map(function (x) {
+        return { referencedObject: { source: '$3DSpace', type: 'Drawing', id: x.d.id, relativePath: 'resources/v1/modeler/dsxcad/dsxcad:Drawing/' + x.d.id }, ruleID: regra.ruleId };
+      }) };
+      return comContextoExport(function (c) {
+        return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dsdo/dsdo:DerivedOutputJobs', corpo, c);
+      });
+    }).then(function (r) {
+      var jobs = (r && r.member) || [];
+      anotar('Gerar PDFs', 'OK', jobs.length + ' conversão(ões) pedida(s)');
+      var pendentes = lista.slice(), inicio = Date.now(), prontos = 0;
+      function rodada() {
+        progresso('gerando PDFs na 3DX: ' + prontos + ' de ' + lista.length + ' pronto(s)... (' + Math.round((Date.now() - inicio) / 1000) + 's)');
+        return Promise.all(pendentes.map(function (x) {
+          return lerSaidas(x.d).then(function (arqs) { var f = escolherPdf(arqs); if (f) { x.pdf = f; x.gerado = true; } }).catch(function () { });
+        })).then(function () {
+          pendentes = pendentes.filter(function (x) { return !x.pdf; });
+          prontos = lista.length - pendentes.length;
+          if (!pendentes.length || Date.now() - inicio > 300000) return;
+          return new Promise(function (ok) { setTimeout(ok, 8000); }).then(rodada);
+        });
+      }
+      return new Promise(function (ok) { setTimeout(ok, 5000); }).then(rodada).then(function () {
+        pendentes.forEach(function (x) { x.emConversao = true; });
+      });
+    });
+  }
+
+  var exportPendente = null;   // { desenhos analisados } esperando o usuário decidir sobre os sem PDF
+
   function exportarPdfs() {
     if (pdfsRodando) return;
     if (!dados || desenhosEstado !== 'ok') { mostrarAviso('Carregue uma montagem e aguarde os desenhos serem consultados.', 'erro'); return; }
-    // desenhos únicos da estrutura (inclui a montagem principal)
     var vistos = {}, desenhosEst = [], naEstrutura = {};
     dados.unicos.forEach(function (u) { naEstrutura[u.item.id] = true; }); naEstrutura[dados.raiz.item.id] = true;
     Object.keys(desenhosLista).filter(function (itemId) { return naEstrutura[itemId]; }).forEach(function (itemId) {
       (desenhosLista[itemId] || []).forEach(function (d) { if (!vistos[d.id]) { vistos[d.id] = true; desenhosEst.push(d); } });
     });
     if (!desenhosEst.length) { mostrarAviso('Nenhum desenho encontrado nesta estrutura.', 'erro'); return; }
-    pdfsRodando = true;
-    $('sm-pdfs').disabled = true;
-    var raiz = dados.raiz.item, feitos = 0, total = desenhosEst.length;
-    var incluidos = [], semPdf = [], desatualizados = [], falhas = [];
+    pdfsRodando = true; $('sm-pdfs').disabled = true;
+    var total = desenhosEst.length, vistosN = 0;
     function progresso(txt) { mostrarAviso('<strong>PDFs dos desenhos:</strong> ' + txt); }
-    progresso('preparando ' + total + ' desenho(s)...');
+    progresso('verificando ' + total + ' desenho(s)...');
     anotar('PDFs dos desenhos', '...', total + ' desenho(s)');
+    var itens = desenhosEst.map(function (d) { return { d: d }; }), fila = itens.slice();
+    function proximo() {
+      var x = fila.shift(); if (!x) return Promise.resolve();
+      return lerSaidas(x.d).then(function (arqs) { x.pdf = escolherPdf(arqs); }).catch(function (e) { x.erro = textoErro(e); })
+        .then(function () { vistosN++; progresso('verificando ' + vistosN + ' de ' + total + '...'); return proximo(); });
+    }
+    Promise.all([proximo(), proximo(), proximo(), proximo()]).then(function () {
+      var semPdf = itens.filter(function (x) { return !x.pdf && !x.erro; });
+      if (!semPdf.length) return concluirPdfs(itens, progresso);
+      // pergunta antes de gerar
+      exportPendente = { itens: itens, semPdf: semPdf, progresso: progresso };
+      mostrarAviso('<strong>PDFs dos desenhos:</strong> ' + (total - semPdf.length) + ' de ' + total + ' desenho(s) já têm PDF. <strong>' + semPdf.length + (semPdf.length === 1 ? ' não tem.' : ' não têm.') + '</strong> ' +
+        '<span class="sm-acoes-aviso"><button type="button" class="sm-btn" id="sm-pdf-gerar">' + (semPdf.length === 1 ? 'Gerar o PDF que falta e baixar tudo' : 'Gerar os ' + semPdf.length + ' PDFs que faltam e baixar tudo') + '</button>' +
+        '<button type="button" class="sm-btn2" id="sm-pdf-so">Baixar só os que existem</button></span>');
+      pdfsRodando = false;
+    }).catch(function (e) { falhaPdfs(e); });
+  }
 
-    carregarJSZip().catch(function () { return null; }).then(function (JSZip) {
-      var zip = JSZip ? new JSZip() : null, nomesUsados = {}, fila = desenhosEst.slice();
-      function proximo() {
-        var d = fila.shift();
-        if (!d) return Promise.resolve();
-        return requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dsdo/dsdo:DerivedOutputs/' + encodeURIComponent(d.id))
-          .then(function (r) {
-            var arqs = (((r && r.member && r.member[0]) || {}).derivedOutputs || {}).derivedOutputfiles || [];
-            var f = escolherPdf(arqs);
-            if (!f) { semPdf.push(d); return; }
-            if (!f.isSync) desatualizados.push(d);
-            return pedirTicket(d.id, f.id).then(baixarArquivo).then(function (blob) {
-              var base = nomeSeguro((d.title || d.name) + ' - rev ' + (d.revision || '') + ' - ' + rotulo(d.state)), nome = base + '.pdf', k = 2;
-              while (nomesUsados[nome]) nome = base + ' (' + (k++) + ').pdf';
-              nomesUsados[nome] = true;
-              incluidos.push({ d: d, nome: nome, blob: blob, sync: f.isSync });
-            });
-          })
-          .catch(function (e) { falhas.push({ d: d, erro: textoErro(e) }); })
-          .then(function () { feitos++; progresso('baixando ' + feitos + ' de ' + total + '...'); return proximo(); });
+  function decidirPdfs(gerar) {
+    var p = exportPendente; exportPendente = null;
+    if (!p || pdfsRodando) return;
+    pdfsRodando = true; $('sm-pdfs').disabled = true;
+    var passo = gerar ? gerarPdfs(p.semPdf, p.progresso).catch(function (e) { p.erroGerar = textoErro(e); anotar('Gerar PDFs', 'ERRO', textoErro(e)); }) : Promise.resolve();
+    passo.then(function () { return concluirPdfs(p.itens, p.progresso, p.erroGerar); }).catch(falhaPdfs);
+  }
+
+  function falhaPdfs(e) {
+    mostrarAviso('Erro ao exportar os PDFs: ' + esc(textoErro(e)), 'erro');
+    anotar('PDFs dos desenhos', 'ERRO', textoErro(e));
+    pdfsRodando = false; if ($('sm-pdfs')) $('sm-pdfs').disabled = !dados;
+  }
+
+  function concluirPdfs(itens, progresso, erroGerar) {
+    var raiz = dados.raiz.item, comPdf = itens.filter(function (x) { return x.pdf; }), feitos = 0;
+    var incluidos = [], falhas = [], nomesUsados = {}, fila = comPdf.slice();
+    function proximo() {
+      var x = fila.shift(); if (!x) return Promise.resolve();
+      return pedirTicket(x.d.id, x.pdf.id).then(baixarArquivo).then(function (blob) {
+        var d = x.d, base = nomeSeguro((d.title || d.name) + ' - rev ' + (d.revision || '') + ' - ' + rotulo(d.state)), nome = base + '.pdf', k = 2;
+        while (nomesUsados[nome]) nome = base + ' (' + (k++) + ').pdf';
+        nomesUsados[nome] = true;
+        incluidos.push({ x: x, nome: nome, blob: blob });
+      }).catch(function (e) { falhas.push({ d: x.d, erro: textoErro(e) }); })
+        .then(function () { feitos++; progresso('baixando ' + feitos + ' de ' + comPdf.length + '...'); return proximo(); });
+    }
+    return Promise.all([proximo(), proximo(), proximo()]).then(function () {
+      var semPdf = itens.filter(function (x) { return !x.pdf && !x.erro && !x.emConversao; });
+      var emConv = itens.filter(function (x) { return x.emConversao; });
+      itens.filter(function (x) { return x.erro; }).forEach(function (x) { falhas.push({ d: x.d, erro: x.erro }); });
+      var gerados = incluidos.filter(function (i) { return i.x.gerado; }).length;
+      var desat = incluidos.filter(function (i) { return !i.x.pdf.isSync; }).length;
+      var leia = ['PDFs dos desenhos da montagem ' + (raiz.title || raiz.name) + ' (' + raiz.name + ' rev ' + raiz.revision + ')',
+        'Gerado pelo Status de Montagens ' + VERSAO + ' em ' + agora(), '',
+        'Incluídos: ' + incluidos.length + ' de ' + itens.length + ' desenho(s)' + (gerados ? ' (' + gerados + ' gerado(s) agora pela 3DX)' : ''), ''];
+      incluidos.forEach(function (i) { leia.push('  [OK] ' + i.nome + (i.x.gerado ? '  (PDF gerado agora)' : '') + (i.x.pdf.isSync ? '' : '  (PDF desatualizado em relação ao desenho)')); });
+      if (emConv.length) { leia.push('', 'Conversão pedida, mas ainda não terminou (' + emConv.length + '). Exporte de novo em alguns minutos:'); emConv.forEach(function (x) { leia.push('  [..] ' + (x.d.title || x.d.name) + ' (' + x.d.name + ' rev ' + x.d.revision + ')'); }); }
+      if (semPdf.length) { leia.push('', 'Sem PDF na 3DX (' + semPdf.length + '):' + (erroGerar ? ' — não consegui gerar: ' + erroGerar : '')); semPdf.forEach(function (x) { leia.push('  [--] ' + (x.d.title || x.d.name) + ' (' + x.d.name + ' rev ' + x.d.revision + ', ' + rotulo(x.d.state) + ')'); }); }
+      if (falhas.length) { leia.push('', 'Não consegui baixar (' + falhas.length + '):'); falhas.forEach(function (f) { leia.push('  [ERRO] ' + (f.d.title || f.d.name) + ': ' + f.erro); }); }
+      anotar('PDFs dos desenhos', incluidos.length ? 'OK' : 'ERRO', incluidos.length + ' PDF(s), ' + gerados + ' gerado(s), ' + semPdf.length + ' sem PDF, ' + emConv.length + ' em conversão, ' + falhas.length + ' falha(s)');
+      if (!incluidos.length) {
+        mostrarAviso('Nenhum PDF foi baixado. ' + (erroGerar ? 'Não consegui gerar: ' + esc(erroGerar) + '. ' : '') + (emConv.length ? emConv.length + ' ainda em conversão na 3DX; tente de novo em alguns minutos. ' : '') + (falhas.length ? 'Falha: ' + esc(falhas[0].erro) : ''), 'erro');
+        return;
       }
-      return Promise.all([proximo(), proximo(), proximo()]).then(function () {
-        var dataTxt = agora();
-        var leia = ['PDFs dos desenhos da montagem ' + (raiz.title || raiz.name) + ' (' + raiz.name + ' rev ' + raiz.revision + ')',
-          'Gerado pelo Status de Montagens ' + VERSAO + ' em ' + dataTxt, '',
-          'Incluídos: ' + incluidos.length + ' de ' + total + ' desenho(s)', ''];
-        incluidos.forEach(function (x) { leia.push('  [OK] ' + x.nome + (x.sync ? '' : '  (PDF desatualizado em relação ao desenho)')); });
-        if (semPdf.length) { leia.push('', 'Sem PDF na 3DX (' + semPdf.length + '):'); semPdf.forEach(function (d) { leia.push('  [--] ' + (d.title || d.name) + ' (' + d.name + ' rev ' + d.revision + ', ' + rotulo(d.state) + ')'); }); }
-        if (falhas.length) { leia.push('', 'Não consegui baixar (' + falhas.length + '):'); falhas.forEach(function (x) { leia.push('  [ERRO] ' + (x.d.title || x.d.name) + ': ' + x.erro); }); }
-        var nomeZip = nomeSeguro('PDFs - ' + (raiz.title || raiz.name) + ' - rev ' + raiz.revision);
-        anotar('PDFs dos desenhos', incluidos.length ? 'OK' : 'ERRO', incluidos.length + ' PDF(s), ' + semPdf.length + ' sem PDF, ' + falhas.length + ' falha(s)');
-        if (!incluidos.length) {
-          mostrarAviso('Nenhum PDF foi baixado. ' + (semPdf.length ? semPdf.length + ' desenho(s) não têm PDF na 3DX. ' : '') + (falhas.length ? 'Falhas: ' + esc(falhas[0].erro) : ''), 'erro');
-          return;
-        }
-        function salvar(blob, nome) {
-          var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome;
-          document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
-        }
-        var resumo = incluidos.length + ' PDF(s) exportado(s)' + (semPdf.length ? ' · ' + semPdf.length + ' sem PDF' : '') + (desatualizados.length ? ' · ' + desatualizados.length + ' desatualizado(s)' : '') + (falhas.length ? ' · ' + falhas.length + ' falha(s)' : '') + '. Detalhes no LEIA-ME dentro do zip.';
-        if (zip) {
-          incluidos.forEach(function (x) { zip.file(x.nome, x.blob); });
-          zip.file('LEIA-ME.txt', leia.join('\r\n'));
-          return zip.generateAsync({ type: 'blob' }).then(function (b) { salvar(b, nomeZip + '.zip'); mostrarAviso(esc(resumo)); });
-        }
-        // sem JSZip: baixa um por um
-        incluidos.forEach(function (x, i) { setTimeout(function () { salvar(x.blob, x.nome); }, i * 400); });
-        salvar(new Blob([leia.join('\r\n')], { type: 'text/plain;charset=utf-8' }), nomeZip + ' - LEIA-ME.txt');
-        mostrarAviso(esc(resumo.replace('Detalhes no LEIA-ME dentro do zip.', 'Baixados um por um.')));
-      });
-    }).catch(function (e) {
-      mostrarAviso('Erro ao exportar os PDFs: ' + esc(textoErro(e)), 'erro');
-      anotar('PDFs dos desenhos', 'ERRO', textoErro(e));
-    }).then(function () { pdfsRodando = false; $('sm-pdfs').disabled = !dados; });
+      function salvar(blob, nome) {
+        var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome;
+        document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      }
+      var resumo = incluidos.length + ' PDF(s) exportado(s)' + (gerados ? ' · ' + gerados + ' gerado(s) agora' : '') + (emConv.length ? ' · ' + emConv.length + ' ainda em conversão' : '') +
+        (semPdf.length ? ' · ' + semPdf.length + ' sem PDF' : '') + (desat ? ' · ' + desat + ' desatualizado(s)' : '') + (falhas.length ? ' · ' + falhas.length + ' falha(s)' : '') + '. Detalhes no LEIA-ME dentro do zip.';
+      var zip = new ZipSimples(), nomeZip = nomeSeguro('PDFs - ' + (raiz.title || raiz.name) + ' - rev ' + raiz.revision);
+      incluidos.forEach(function (i) { zip.file(i.nome, i.blob); });
+      zip.file('LEIA-ME.txt', leia.join('\r\n'));
+      return zip.generateAsync().then(function (b) { salvar(b, nomeZip + '.zip'); mostrarAviso(esc(resumo) + (erroGerar ? ' <br />Não consegui gerar os que faltavam: ' + esc(erroGerar) : '')); });
+    }).then(function () { pdfsRodando = false; if ($('sm-pdfs')) $('sm-pdfs').disabled = !dados; });
   }
 
   // ---------- relatório para PDF ----------
@@ -2349,6 +2431,12 @@
     $('sm-atualizar').addEventListener('click', function () { if (modo === 'carteira') lerCarteira(true); else if (bruto) ler(bruto.raiz, deCarteira); });
     $('sm-relatorio').addEventListener('click', gerarRelatorio);
     $('sm-pdfs').addEventListener('click', exportarPdfs);
+    $('sm-aviso').addEventListener('click', function (ev) {
+      var t = ev.target && ev.target.closest ? ev.target.closest('button') : null;
+      if (!t) return;
+      if (t.id === 'sm-pdf-gerar') decidirPdfs(true);
+      if (t.id === 'sm-pdf-so') decidirPdfs(false);
+    });
     $('sm-exportar').addEventListener('click', function () { if (modo === 'carteira') exportarCarteira(); else exportar(); });
     $('sm-conteudo').addEventListener('change', function (ev) {
       if (ev.target.id === 'sm-cart-sel') { carteiras.atual = ev.target.value; carteiraBusca = []; gravarCarteiras(); trocarModo('carteira'); }
