@@ -273,7 +273,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v2.3 (05/11/2026)';
+  var VERSAO = 'v2.4 (05/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -603,10 +603,9 @@
       var membros = (r && r.member) || [];
       amostra.busca = { total: r && r.totalItems, primeiros: membros.slice(0, 3) };
       if (!membros.length) throw new Error('nenhum item encontrado com "' + termo + '"');
-      var exato = null;
-      membros.forEach(function (m) { if (!exato && (m.name === termo || m.title === termo)) exato = m; });
-      anotar('Busca', 'OK', membros.length + ' encontrado(s)');
-      if (exato || membros.length === 1) { ler(exato || membros[0]); return; }
+      var exato = exatoMaisRecente(membros, termo);
+      anotar('Busca', 'OK', membros.length + ' encontrado(s)' + (exato && exato.__outrasRev.length ? ' · abri a rev. ' + exato.revision + ' (outras: ' + exato.__outrasRev.join(', ') + ')' : ''));
+      if (exato || membros.length === 1) { ler(exato || membros[0]); if (exato && exato.__outrasRev.length) setTimeout(function () { mostrarAviso('Abri a <strong>rev. ' + esc(exato.revision) + '</strong>, a mais recente. Também existe: rev. ' + esc(exato.__outrasRev.join(', rev. ')) + '.'); }, 0); return; }
       mostrarEscolha(membros);
       $('sm-buscar').disabled = false;
     }).catch(function (e) {
@@ -615,6 +614,35 @@
       mostrarAviso(esc(textoErro(e)), 'erro');
       $('sm-buscar').disabled = false;
     });
+  }
+
+  // compara revisões ("1.1" < "2.1", "A" < "B" < "AA", "A.1" < "A.2")
+  function compararRev(a, b) {
+    var pa = String(a || '').split(/[^0-9A-Za-z]+/), pb = String(b || '').split(/[^0-9A-Za-z]+/);
+    for (var i = 0; i < Math.max(pa.length, pb.length); i++) {
+      var x = pa[i] || '', y = pb[i] || '';
+      if (x === y) continue;
+      var nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+      if (nx && ny) return Number(x) - Number(y);
+      if (x.length !== y.length) return x.length - y.length;
+      return x < y ? -1 : 1;
+    }
+    return 0;
+  }
+  // de vários itens com o mesmo nome (revisões), fica com a mais recente
+  function maisRecente(lista) {
+    return lista.slice().sort(function (a, b) {
+      return compararRev(b.revision, a.revision) || (Date.parse(b.modified || 0) || 0) - (Date.parse(a.modified || 0) || 0);
+    })[0];
+  }
+  function exatoMaisRecente(membros, termo) {
+    var exatos = membros.filter(function (m) { return m.name === termo || m.title === termo; });
+    if (!exatos.length) return null;
+    // várias revisões do mesmo item: abre a mais recente
+    var mesmoNome = exatos.filter(function (m) { return m.name === exatos[0].name; });
+    var escolhido = maisRecente(mesmoNome.length > 1 ? mesmoNome : exatos);
+    escolhido.__outrasRev = mesmoNome.filter(function (m) { return m !== escolhido; }).map(function (m) { return m.revision + ' ' + rotulo(m.state).toLowerCase(); });
+    return escolhido;
   }
 
   function mostrarEscolha(membros) {
@@ -875,16 +903,49 @@
   var ctxExport = '';      // contexto (papel) que a 3DX aceitou para baixar saídas derivadas
   var pdfsRodando = false;
 
-  function carregarJSZip() {
-    if (window.JSZip) return Promise.resolve(window.JSZip);
-    return new Promise(function (resolve, reject) {
-      var s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-      s.onload = function () { window.JSZip ? resolve(window.JSZip) : reject(new Error('JSZip não carregou')); };
-      s.onerror = function () { reject(new Error('não consegui carregar o JSZip')); };
-      document.head.appendChild(s);
-    });
+  // Zip simples feito aqui mesmo (arquivos guardados sem compressão; PDF já é comprimido).
+  // A 3DX bloqueia bibliotecas externas dentro do widget, por isso não uso JSZip.
+  var TABELA_CRC = null;
+  function crc32(bytes) {
+    if (!TABELA_CRC) { TABELA_CRC = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; TABELA_CRC[n] = c >>> 0; } }
+    var crc = 0xFFFFFFFF;
+    for (var i = 0; i < bytes.length; i++) crc = TABELA_CRC[(crc ^ bytes[i]) & 0xFF] ^ (crc >>> 8);
+    return (crc ^ 0xFFFFFFFF) >>> 0;
   }
+  function ZipSimples() { this.arquivos = []; }
+  ZipSimples.prototype.file = function (nome, conteudo) { this.arquivos.push({ nome: nome, conteudo: conteudo }); };
+  ZipSimples.prototype.generateAsync = function () {
+    var arqs = this.arquivos;
+    return Promise.all(arqs.map(function (a) {
+      if (typeof a.conteudo === 'string') return Promise.resolve(new TextEncoder().encode(a.conteudo));
+      return (a.conteudo.arrayBuffer ? a.conteudo.arrayBuffer() : new Response(a.conteudo).arrayBuffer()).then(function (b) { return new Uint8Array(b); });
+    })).then(function (dadosArq) {
+      var partes = [], central = [], offset = 0, agoraD = new Date();
+      var hora = (agoraD.getHours() << 11) | (agoraD.getMinutes() << 5) | (agoraD.getSeconds() >> 1);
+      var dia = ((agoraD.getFullYear() - 1980) << 9) | ((agoraD.getMonth() + 1) << 5) | agoraD.getDate();
+      arqs.forEach(function (a, i) {
+        var nomeB = new TextEncoder().encode(a.nome), d = dadosArq[i], crc = crc32(d);
+        var loc = new DataView(new ArrayBuffer(30));
+        loc.setUint32(0, 0x04034b50, true); loc.setUint16(4, 20, true); loc.setUint16(6, 0x0800, true); loc.setUint16(8, 0, true);
+        loc.setUint16(10, hora, true); loc.setUint16(12, dia, true); loc.setUint32(14, crc, true);
+        loc.setUint32(18, d.length, true); loc.setUint32(22, d.length, true); loc.setUint16(26, nomeB.length, true); loc.setUint16(28, 0, true);
+        partes.push(new Uint8Array(loc.buffer), nomeB, d);
+        var cen = new DataView(new ArrayBuffer(46));
+        cen.setUint32(0, 0x02014b50, true); cen.setUint16(4, 20, true); cen.setUint16(6, 20, true); cen.setUint16(8, 0x0800, true); cen.setUint16(10, 0, true);
+        cen.setUint16(12, hora, true); cen.setUint16(14, dia, true); cen.setUint32(16, crc, true); cen.setUint32(20, d.length, true); cen.setUint32(24, d.length, true);
+        cen.setUint16(28, nomeB.length, true); cen.setUint16(30, 0, true); cen.setUint16(32, 0, true); cen.setUint16(34, 0, true); cen.setUint16(36, 0, true);
+        cen.setUint32(38, 0, true); cen.setUint32(42, offset, true);
+        central.push(new Uint8Array(cen.buffer), nomeB);
+        offset += 30 + nomeB.length + d.length;
+      });
+      var tamCentral = central.reduce(function (t, p) { return t + p.length; }, 0);
+      var fim = new DataView(new ArrayBuffer(22));
+      fim.setUint32(0, 0x06054b50, true); fim.setUint16(8, arqs.length, true); fim.setUint16(10, arqs.length, true);
+      fim.setUint32(12, tamCentral, true); fim.setUint32(16, offset, true);
+      return new Blob(partes.concat(central, [new Uint8Array(fim.buffer)]), { type: 'application/zip' });
+    });
+  };
+  function carregarJSZip() { return Promise.resolve(ZipSimples); }
 
   // contextos que o usuário tem, começando pelo atual e pelos de Leader (normalmente têm direito de exportar)
   function contextosParaExportar() {
@@ -1001,7 +1062,7 @@
         // sem JSZip: baixa um por um
         incluidos.forEach(function (x, i) { setTimeout(function () { salvar(x.blob, x.nome); }, i * 400); });
         salvar(new Blob([leia.join('\r\n')], { type: 'text/plain;charset=utf-8' }), nomeZip + ' - LEIA-ME.txt');
-        mostrarAviso(esc(resumo.replace('Detalhes no LEIA-ME dentro do zip.', 'Baixados um por um (não consegui montar o zip).')));
+        mostrarAviso(esc(resumo.replace('Detalhes no LEIA-ME dentro do zip.', 'Baixados um por um.')));
       });
     }).catch(function (e) {
       mostrarAviso('Erro ao exportar os PDFs: ' + esc(textoErro(e)), 'erro');
@@ -1358,7 +1419,7 @@
       var membros = (r && r.member) || [];
       if (!membros.length) { mostrarAviso('Nenhum item encontrado com "' + esc(termo) + '".', 'erro'); $('sm-cart-add').disabled = false; return; }
       mostrarAviso('');
-      var exato = membros.filter(function (m) { return m.name === termo || m.title === termo; })[0];
+      var exato = exatoMaisRecente(membros, termo);
       if (exato || membros.length === 1) { cartAdicionar(exato || membros[0]); return; }
       carteiraBusca = membros; desenharCarteira();
     }).catch(function (e) { mostrarAviso(esc(textoErro(e)), 'erro'); if ($('sm-cart-add')) $('sm-cart-add').disabled = false; });
