@@ -261,6 +261,15 @@
   .sm-modal-img img { width: 432px; max-width: 100%; height: auto; }
   .sm-modal-acoes { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .sm-modal-msg { font-size: 13px; }
+  .sm-mat-op { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: flex-start; }
+  .sm-mat-rot { width: 100%; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--texto3); }
+  .sm-mat-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+  .sm-mat-resumo div { background: #222528; border: 1px solid var(--borda); border-radius: 10px; padding: 10px 12px; }
+  .sm-mat-resumo b { display: block; font-size: 22px; font-weight: 500; color: var(--titulo); }
+  .sm-mat-resumo span { font-size: 12px; color: var(--texto3); }
+  .sm-mat-resumo .sm-mat-alerta { border-color: #d95926; }
+  .sm-mat-tab { max-height: 260px; overflow: auto; margin-top: 6px; }
+  details summary { cursor: pointer; font-size: 13px; padding: 4px 0; }
 
   /* mensagens e textos auxiliares */
   .sm-aviso { background: rgba(250,178,25,0.12); border: 1px solid rgba(250,178,25,0.35); border-radius: 10px; padding: 12px 14px; color: #F5D88A; }
@@ -286,7 +295,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v2.9 (06/11/2026)';
+  var VERSAO = 'v3.0 (06/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -342,6 +351,7 @@
   var ICONE_BUSCA = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>';
   var ICONE_CONFIG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>';
   var ICONE_PDF = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M15 3v4h4"></path><path d="M9 13h6M9 17h4"></path></svg>';
+  var ICONE_MAT = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 17l5-5 4 4 7-8"></path><path d="M14 8h6v6"></path></svg>';
   var ICONE_ZIP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"></path><path d="M11 3v2M11 7v2M11 11v2"></path><rect x="9.5" y="14" width="3" height="4" rx="1"></rect></svg>';
   var ICONE_BAIXAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>';
   var ICONE_ATUALIZAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"></path></svg>';
@@ -362,6 +372,7 @@
           '<button type="button" class="sm-btn2" id="sm-exportar" disabled>' + ICONE_BAIXAR + 'Excel</button>' +
           '<button type="button" class="sm-btn2" id="sm-relatorio" disabled>' + ICONE_PDF + 'Relatório PDF</button>' +
           '<button type="button" class="sm-btn2" id="sm-pdfs" disabled title="Baixa num .zip os PDFs que já existem nos desenhos da estrutura">' + ICONE_ZIP + 'PDFs dos desenhos</button>' +
+          '<button type="button" class="sm-btn2" id="sm-maturidade" disabled title="Muda a maturidade da montagem, submontagens, peças e desenhos juntos (só papel de Líder)">' + ICONE_MAT + 'Maturidade em lote</button>' +
           '<button type="button" class="sm-btn2" id="sm-config-btn" aria-expanded="false" aria-controls="sm-config">' + ICONE_CONFIG + 'Configurações</button>' +
         '</div>' +
       '</div>' +
@@ -465,14 +476,14 @@
     $('sm-aviso').innerHTML = html ? '<div class="' + (tipo === 'erro' ? 'sm-erro' : 'sm-aviso') + '">' + html + '</div>' : '';
   }
 
-  function requisicao(metodo, url, corpo, ctxOutro) {
+  function requisicao(metodo, url, corpo, ctxOutro, tempoMax) {
     return new Promise(function (resolve, reject) {
       var headers = { 'Accept': 'application/json' };
       if (ctxOutro || estado.ctx) headers['SecurityContext'] = ctxOutro || estado.ctx;
       if (corpo) headers['Content-Type'] = 'application/json';
       if (metodo !== 'GET' && estado.csrf) headers[estado.csrf.name] = estado.csrf.value;
       WAF.authenticatedRequest(url, {
-        method: metodo, headers: headers, data: corpo ? JSON.stringify(corpo) : undefined, type: 'json', timeout: 180000,
+        method: metodo, headers: headers, data: corpo ? JSON.stringify(corpo) : undefined, type: 'json', timeout: tempoMax || 180000,
         onComplete: function (r) { if (typeof r === 'string') { try { r = JSON.parse(r); } catch (x) { } } resolve(r); },
         onFailure: function (err, resp) {
           var extra = '';
@@ -526,7 +537,12 @@
       }
       var v = FED_VARIANTES[i];
       return comTempo(chamarFed(url, corpo, v), 35000, v.nome).then(function (r) {
-        if (r && !r.results && r.infos) { vazioValido = true; throw new Error('0 resultado(s)'); }
+        if (r && !r.results && r.infos) {
+          // a 3DX respondeu certo, só não achou nada: este jeito de chamar funciona
+          amostra.thumbsTentativas.push(v.nome + ': 0 resultado(s)');
+          fedVariante = i;
+          return { results: [], vazio: true };
+        }
         if (!r || !r.results) throw new Error('resposta sem "results": ' + String(JSON.stringify(r)).slice(0, 200));
         amostra.thumbsTentativas.push(v.nome + ': OK, ' + r.results.length + ' resultado(s)');
         fedVariante = i;
@@ -706,7 +722,7 @@
     }).then(function () {
       $('sm-buscar').disabled = false;
       $('sm-atualizar').disabled = !bruto;
-      $('sm-exportar').disabled = !dados; $('sm-relatorio').disabled = !dados; $('sm-pdfs').disabled = !dados;
+      $('sm-exportar').disabled = !dados; $('sm-relatorio').disabled = !dados; $('sm-pdfs').disabled = !dados; $('sm-maturidade').disabled = !dados || matRodando;
     });
   }
 
@@ -740,7 +756,7 @@
     membros.forEach(function (m) { vistos[chaveMembro(m)] = true; });
     if (!ctxs.length) return Promise.resolve(res);
     return emParalelo(ctxs, 4, function (c) {
-      return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raizId) + '/expand', { expandDepth: -1, withPath: true }, c.ctx)
+      return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raizId) + '/expand', { expandDepth: -1, withPath: true }, c.ctx, 90000)
         .then(function (r) {
           ((r && r.member) || []).forEach(function (m) {
             var k = chaveMembro(m);
@@ -760,7 +776,7 @@
       if (k >= tipos.length) return Promise.resolve([]);
       return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dsxcad/dsxcad:Drawing/Locate', {
         referencedObject: [{ source: '$3DSpace', type: 'VPMReference', id: it.id, relativePath: tipos[k] + it.id }]
-      }, ctx).then(function (r) { return ((r && r.member) || []).map(function (d) { return d.id; }).filter(Boolean); })
+      }, ctx, 20000).then(function (r) { return ((r && r.member) || []).map(function (d) { return d.id; }).filter(Boolean); })
         .catch(function () { return tentar(k + 1); });
     }
     return tentar(0);
@@ -790,9 +806,14 @@
     // limite de segurança para estruturas muito grandes (cada consulta é uma chamada à 3DX)
     var LIMITE = 2000;
     if (tarefas.length > LIMITE) { res.limitado = tarefas.length; tarefas = tarefas.slice(0, LIMITE); }
-    var vistos = {};
+    var vistos = {}, feitas = 0, inicio = Date.now(), PRAZO = 4 * 60000;
     Object.keys(desenhosLista).forEach(function (k) { desenhosLista[k].forEach(function (d) { vistos[d.id] = true; }); });
+    var foto = bruto;
     return emParalelo(tarefas, 8, function (t) {
+      if (bruto !== foto) return;                              // trocou de montagem: para
+      if (Date.now() - inicio > PRAZO) { res.cortado = (res.cortado || 0) + 1; return; }
+      feitas++;
+      if (feitas % 25 === 0) anotar('Outros espaços (CS)', '...', 'conferindo desenhos em outros espaços: ' + feitas + ' de ' + tarefas.length + ' consulta(s)');
       if (desenhos[t.it.id]) return;   // outro CS já achou
       return localizarDesenhosCom(t.it, temFilhos[t.it.id], t.c.ctx).then(function (ids) {
         return Promise.all(ids.filter(function (id) { return !vistos[id]; }).map(function (id) {
@@ -808,7 +829,7 @@
   function conferirOutrosCS(foto) {
     if (!cfg.todosCS || !bruto || !contextosOutrosCS().length) return Promise.resolve(false);
     var ctxs = contextosOutrosCS();
-    anotar('Outros espaços (CS)', '...', 'conferindo com ' + ctxs.length + ' espaço(s) de colaboração');
+    anotar('Outros espaços (CS)', '...', 'relendo a estrutura com ' + ctxs.length + ' outro(s) espaço(s) de colaboração: ' + ctxs.map(function (c) { return c.cs; }).join(', '));
     return conferirEstruturaOutrosCS(foto.raiz.id, foto.membros).then(function (rE) {
       if (bruto !== foto) return false;
       var mudou = rE.novosItens > 0;
@@ -821,8 +842,9 @@
             (rE.novosItens ? ' (' + Object.keys(rE.porCS).map(function (k) { return k + ': ' + rE.porCS[k]; }).join(', ') + ')' : '') +
             ' · ' + rD.novos + ' desenho(s) a mais' + (rD.novos ? ' (' + Object.keys(rD.porCS).map(function (k) { return k + ': ' + rD.porCS[k]; }).join(', ') + ')' : '') +
             (rE.falhas ? ' · ' + rE.falhas + ' CS sem acesso à montagem' : '') +
-            (rD.limitado ? ' · desenhos conferidos só em parte (' + rD.limitado + ' consultas, limite 2000)' : '');
-          anotar('Outros espaços (CS)', 'OK', txt);
+            (rD.limitado ? ' · desenhos conferidos só em parte (' + rD.limitado + ' consultas, limite 2000)' : '') +
+            (rD.cortado ? ' · prazo de 4 min esgotado: ' + rD.cortado + ' consulta(s) de desenho não feitas' : '');
+          anotar('Outros espaços (CS)', (rD.cortado || rD.limitado) ? 'PARCIAL' : 'OK', txt);
           amostra.outrosCS = { estrutura: rE, desenhos: rD };
           if (mudou || rD.novos) {
             desenhar();
@@ -853,6 +875,7 @@
     $('sm-exportar').disabled = m === 'carteira' ? !listaAtual().some(function (x) { return carteiraDados[x.id] && carteiraDados[x.id].resumo; }) : !dados;
     $('sm-relatorio').disabled = $('sm-exportar').disabled;
     $('sm-pdfs').disabled = m === 'carteira' || !dados;
+    $('sm-maturidade').disabled = m === 'carteira' || !dados || matRodando;
     $('sm-atualizar').disabled = m === 'carteira' ? !listaAtual().length : !bruto;
     if (semDesenhar) return;
     if (m === 'carteira') { desenharCarteira(); if (listaAtual().length && listaAtual().some(function (x) { return !carteiraDados[x.id]; })) lerCarteira(false); }
@@ -1173,6 +1196,228 @@
     });
   }
 
+  // ---------- mudar maturidade em lote (montagem, submontagens, peças e desenhos) ----------
+  // Regra de governança: só com o papel de Líder (VPLMProjectLeader). Desenhos andam junto com o item.
+  // Fluxo: simula (getNextStates, sem mudar nada) -> mostra o que vai mudar -> confirmação -> muda de baixo para cima.
+  var matRodando = false, matPlano = null;
+  var ORDEM_MAT = { PRIVATE: 0, IN_WORK: 1, FROZEN: 2, RELEASED: 3, OBSOLETE: 4 };
+
+  function ctxLider() {
+    var p = estado.pessoa || {}, atualCS = String(estado.ctx || '').replace(/^ctx::/, '').split('.').slice(2).join('.'), achados = [];
+    (p.collabspaces || []).forEach(function (cs) {
+      (cs.couples || []).forEach(function (c) {
+        if (c.role && c.organization && c.role.name === 'VPLMProjectLeader') achados.push({ cs: cs.name, ctx: 'ctx::' + c.role.name + '.' + c.organization.name + '.' + cs.name });
+      });
+    });
+    achados.sort(function (a, b) { return (b.cs === atualCS ? 1 : 0) - (a.cs === atualCS ? 1 : 0); });
+    return achados[0] || null;
+  }
+
+  function refMat(o) {
+    var des = o.tipo === 'Drawing';
+    return { id: o.id, type: des ? 'Drawing' : (o.type || 'VPMReference'), source: '$3DSpace',
+      relativePath: des ? 'resources/v1/modeler/dsxcad/dsxcad:Drawing/' + o.id : 'resources/v1/modeler/dseng/dseng:EngItem/' + o.id };
+  }
+
+  function abrirMaturidade() {
+    if (matRodando || pdfsRodando) return;
+    if (!dados) { mostrarAviso('Carregue uma montagem primeiro.', 'erro'); return; }
+    var lider = ctxLider();
+    if (!lider) { mostrarAviso('<strong>Mudar maturidade em lote</strong> só pode ser usado com o papel de <strong>Líder</strong> (VPLMProjectLeader). Você não tem esse papel em nenhum espaço de colaboração.', 'erro'); return; }
+    if (desenhosEstado !== 'ok') { mostrarAviso('Aguarde os desenhos da estrutura terminarem de ser consultados (os desenhos mudam junto com os itens).', 'erro'); return; }
+    var r = dados.raiz.item;
+    noModal = { item: r, maturidade: true }; matPlano = null;
+    $('sm-modal').innerHTML =
+      '<div class="sm-modal-fundo" id="sm-modal-fundo">' +
+        '<div class="sm-modal" role="dialog" aria-modal="true" aria-labelledby="sm-modal-titulo">' +
+          '<div class="sm-modal-topo"><h2 id="sm-modal-titulo">Mudar maturidade em lote</h2>' +
+          '<button type="button" class="sm-btn2" id="sm-modal-fechar" aria-label="Fechar">Fechar</button></div>' +
+          '<p class="sm-modal-msg">Montagem: <strong>' + esc(r.title || r.name) + '</strong> · papel usado: <strong>' + esc(lider.ctx.replace('ctx::', '')) + '</strong></p>' +
+          '<div class="sm-mat-op" role="radiogroup" aria-label="Estado de destino"><span class="sm-mat-rot">Levar para</span>' +
+            '<label class="sm-check"><input type="radio" name="sm-mat-alvo" value="FROZEN" checked /><span><strong>Congelado</strong></span></label>' +
+            '<label class="sm-check"><input type="radio" name="sm-mat-alvo" value="RELEASED" /><span><strong>Liberado</strong></span></label>' +
+          '</div>' +
+          '<div class="sm-mat-op" role="radiogroup" aria-label="O que mudar"><span class="sm-mat-rot">O que mudar</span>' +
+            '<label class="sm-check"><input type="radio" name="sm-mat-esc" value="tudo" checked /><span><strong>Itens e desenhos</strong><small>Submontagens, peças e os desenhos de cada um</small></span></label>' +
+            '<label class="sm-check"><input type="radio" name="sm-mat-esc" value="desenhos" /><span><strong>Só os desenhos</strong></span></label>' +
+          '</div>' +
+          '<label class="sm-check"><input type="checkbox" id="sm-mat-raiz" checked /><span><strong>Incluir a própria montagem pai</strong><small>Ela e o desenho dela mudam por último</small></span></label>' +
+          '<p class="sm-modal-msg sm-vazio">Primeiro eu só <strong>simulo</strong>: nada muda na 3DX até você confirmar. Itens já no estado de destino (ou mais adiante) ficam como estão; nada volta de estado.</p>' +
+          '<div class="sm-modal-acoes"><button type="button" class="sm-btn" id="sm-mat-simular">Simular</button></div>' +
+          '<div id="sm-mat-res"></div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function resMat() { return $('sm-mat-res') || {}; }
+
+  function lerOpcoesMat() {
+    var alvo = (document.querySelector('input[name="sm-mat-alvo"]:checked') || {}).value || 'FROZEN';
+    var esc2 = (document.querySelector('input[name="sm-mat-esc"]:checked') || {}).value || 'tudo';
+    return { alvo: alvo, soDesenhos: esc2 === 'desenhos', raiz: !!($('sm-mat-raiz') && $('sm-mat-raiz').checked) };
+  }
+
+  // monta a lista de objetos com o nível de cada um (o mais fundo onde o item aparece)
+  function objetosMat(op) {
+    var nivel = {}, itens = {}, raiz = dados.raiz.item;
+    dados.nos.forEach(function (n) { if (!(n.item.id in nivel) || n.nivel > nivel[n.item.id]) nivel[n.item.id] = n.nivel; itens[n.item.id] = n.item; });
+    if (op.raiz) { nivel[raiz.id] = 0; itens[raiz.id] = raiz; }
+    var lista = [], desVisto = {};
+    Object.keys(itens).forEach(function (id) {
+      var it = itens[id], nv = nivel[id];
+      if (!op.soDesenhos) lista.push({ id: id, tipo: 'Item', type: it.type || 'VPMReference', nome: it.title || it.name, rev: it.revision, estado: it.state, nivel: nv, item: it });
+      (desenhosLista[id] || []).forEach(function (d) {
+        // desenho ligado a vários itens: vai com o mais fundo
+        if (desVisto[d.id] && desVisto[d.id].nivel >= nv) return;
+        var o = { id: d.id, tipo: 'Drawing', nome: d.title || d.name, rev: d.revision, estado: d.state, nivel: nv, item: it, de: it.title || it.name };
+        if (desVisto[d.id]) lista.splice(lista.indexOf(desVisto[d.id]), 1);
+        desVisto[d.id] = o; lista.push(o);
+      });
+    });
+    return lista;
+  }
+
+  function simularMaturidade() {
+    if (matRodando) return;
+    var op = lerOpcoesMat(), lider = ctxLider();
+    if (!lider) return;
+    var lista = objetosMat(op);
+    if (!lista.length) { resMat().innerHTML = '<p class="sm-modal-msg">Nada para mudar com essas opções.</p>'; return; }
+    matRodando = true; $('sm-mat-simular').disabled = true;
+    var lotes = [], feitos = 0;
+    for (var i = 0; i < lista.length; i += 50) lotes.push(lista.slice(i, i + 50));
+    function prog() { resMat().innerHTML = '<p class="sm-modal-msg" role="status"><span class="sm-girando" aria-hidden="true"></span> Simulando: consultando ' + feitos + ' de ' + lista.length + ' objeto(s) na 3DX...</p>'; }
+    prog();
+    anotar('Maturidade em lote', '...', 'simulando ' + lista.length + ' objeto(s) → ' + op.alvo);
+    var url = estado.spaceUrl + '/resources/v1/modeler/dslc/maturity/getNextStates';
+    function consultar(lote, topo) {
+      return requisicao('POST', url, { data: lote.map(refMat) }, lider.ctx, 60000).then(function (r) {
+        var porId = {};
+        ((r && r.data) || []).forEach(function (x) { if (x && x.id) porId[x.id] = x; });
+        lote.forEach(function (o) {
+          var x = porId[o.id];
+          if (x) { o.proximos = x.nextStates || []; if (x.maturityState) o.estado = x.maturityState; }
+          else o.erro = 'a 3DX não devolveu este objeto';
+        });
+      }).catch(function (e) {
+        if (lote.length > 1) return emParalelo(lote.map(function (o) { return [o]; }), 3, function (l) { return consultar(l, false); });
+        lote[0].erro = textoErro(e);
+      }).then(function () { if (topo) { feitos += lote.length; prog(); } });
+    }
+    emParalelo(lotes, 3, function (l) { return consultar(l, true); }).then(function () {
+      lista.forEach(function (o) {
+        var s = o.estado, rs = !o.tipo || o.tipo === 'Item' ? reservas[o.id] : null;
+        if (o.erro) { o.classe = 'bloq'; o.motivo = 'erro na consulta: ' + o.erro; }
+        else if (s === op.alvo || (ORDEM_MAT[s] !== undefined && ORDEM_MAT[s] > ORDEM_MAT[op.alvo])) { o.classe = 'pula'; o.motivo = 'já está ' + rotulo(s); }
+        else if (rs && !ehMeu(rs.por)) { o.classe = 'bloq'; o.motivo = 'reservado por ' + (rs.por || 'outra pessoa'); }
+        else if ((o.proximos || []).indexOf(op.alvo) >= 0) { o.classe = 'muda'; o.motivo = rotulo(s) + ' → ' + rotulo(op.alvo); }
+        else { o.classe = 'bloq'; o.motivo = 'a 3DX não permite ' + rotulo(s) + ' → ' + rotulo(op.alvo) + (o.proximos && o.proximos.length ? ' (permite: ' + o.proximos.map(rotulo).join(', ') + ')' : ' com este papel'); }
+      });
+      matPlano = { op: op, lista: lista, ctx: lider.ctx };
+      mostrarSimulacao();
+      anotar('Maturidade em lote', 'OK', 'simulação: ' + contarMat('muda') + ' muda(m), ' + contarMat('pula') + ' já ok, ' + contarMat('bloq') + ' bloqueado(s)');
+    }).catch(function (e) {
+      resMat().innerHTML = '<p class="sm-modal-msg">Erro na simulação: ' + esc(textoErro(e)) + '</p>';
+    }).then(function () { matRodando = false; if ($('sm-mat-simular')) $('sm-mat-simular').disabled = false; });
+  }
+
+  function contarMat(c, tipo) { return matPlano.lista.filter(function (o) { return o.classe === c && (!tipo || (tipo === 'Drawing') === (o.tipo === 'Drawing')); }).length; }
+
+  function mostrarSimulacao() {
+    var p = matPlano, muda = contarMat('muda'), bloq = contarMat('bloq');
+    function linhas(c) {
+      return p.lista.filter(function (o) { return o.classe === c; }).sort(function (a, b) { return b.nivel - a.nivel; }).map(function (o) {
+        return '<tr><td>' + o.nivel + '</td><td>' + (o.tipo === 'Drawing' ? 'Desenho' : 'Item') + '</td><td>' + esc(o.nome) + (o.tipo === 'Drawing' && o.de ? ' <small class="sm-vazio">(de ' + esc(o.de) + ')</small>' : '') + '</td><td>' + esc(o.rev || '') + '</td><td>' + esc(o.motivo) + '</td></tr>';
+      }).join('');
+    }
+    function tabela(c, titulo, aberto) {
+      var n = contarMat(c); if (!n) return '';
+      return '<details' + (aberto ? ' open' : '') + '><summary><strong>' + titulo + ': ' + n + '</strong></summary><div class="sm-tabela sm-mat-tab"><table><thead><tr><th>Nível</th><th>Tipo</th><th>Nome</th><th>Rev.</th><th>Situação</th></tr></thead><tbody>' + linhas(c) + '</tbody></table></div></details>';
+    }
+    resMat().innerHTML =
+      '<div class="sm-mat-resumo">' +
+        '<div><b>' + muda + '</b><span>vão mudar (' + contarMat('muda', 'Item') + ' itens, ' + contarMat('muda', 'Drawing') + ' desenhos)</span></div>' +
+        '<div><b>' + contarMat('pula') + '</b><span>já estão ' + rotulo(p.op.alvo) + ' ou adiante</span></div>' +
+        '<div class="' + (bloq ? 'sm-mat-alerta' : '') + '"><b>' + bloq + '</b><span>bloqueados</span></div>' +
+      '</div>' +
+      (bloq ? '<p class="sm-modal-msg"><strong>Atenção:</strong> os bloqueados ficam como estão. Os demais mudam normalmente.</p>' : '') +
+      tabela('bloq', 'Bloqueados', true) + tabela('muda', 'Vão mudar', !bloq) + tabela('pula', 'Ficam como estão', false) +
+      (muda ? '<div class="sm-modal-acoes"><button type="button" class="sm-btn" id="sm-mat-confirmar">Confirmar: levar ' + muda + ' objeto(s) para ' + rotulo(p.op.alvo) + '</button>' +
+        '<button type="button" class="sm-btn2" id="sm-mat-csv">Baixar a simulação (CSV)</button></div>' +
+        '<p class="sm-modal-msg sm-vazio">A mudança é feita de baixo para cima (peças primeiro, montagem pai por último), cada desenho junto com o seu item.</p>'
+        : '<p class="sm-modal-msg">Nada para mudar.</p>');
+  }
+
+  function csvMat(nomeBase) {
+    var sep = ';';
+    function cel(v) { v = v === null || v === undefined ? '' : String(v); return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+    var l = [['Nível', 'Tipo', 'Nome', 'Revisão', 'Item do desenho', 'Estado antes', 'Resultado', 'Detalhe'].join(sep)];
+    matPlano.lista.slice().sort(function (a, b) { return b.nivel - a.nivel; }).forEach(function (o) {
+      var res = o.feito ? 'mudou para ' + rotulo(matPlano.op.alvo) : o.falha ? 'falhou' : o.classe === 'muda' ? 'vai mudar' : o.classe === 'pula' ? 'ficou como estava' : 'bloqueado';
+      l.push([o.nivel, o.tipo === 'Drawing' ? 'Desenho' : 'Item', o.nome, o.rev, o.tipo === 'Drawing' ? o.de : '', rotulo(o.estadoAntes || o.estado), res, o.falha || o.motivo].map(cel).join(sep));
+    });
+    var blob = new Blob(['﻿' + l.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nomeBase + '-' + String(dados.raiz.item.title || dados.raiz.item.name).replace(/[^\w.-]+/g, '_') + '.csv';
+    document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.parentNode.removeChild(a); }, 1000);
+  }
+
+  function executarMaturidade() {
+    var p = matPlano;
+    if (!p || matRodando) return;
+    var fila = p.lista.filter(function (o) { return o.classe === 'muda'; });
+    if (!fila.length) return;
+    fecharModal();
+    matRodando = true; $('sm-maturidade').disabled = true;
+    var niveis = {}, total = fila.length, feitos = 0, ok = 0, url = estado.spaceUrl + '/resources/v1/modeler/dslc/maturity/changeState';
+    fila.forEach(function (o) { o.estadoAntes = o.estado; (niveis[o.nivel] = niveis[o.nivel] || []).push(o); });
+    var ordem = Object.keys(niveis).map(Number).sort(function (a, b) { return b - a; });
+    iniciarPainel(ordem.length, 'Mudando maturidade para ' + rotulo(p.op.alvo));
+    anotar('Maturidade em lote', '...', 'mudando ' + total + ' objeto(s) → ' + p.op.alvo);
+    function prog(k, nv) { painelPdf(k + 1, 'Nível ' + nv + (nv === 0 ? ' (montagem pai)' : ''), feitos, total, ok + ' mudado(s)' + (feitos - ok ? ', ' + (feitos - ok) + ' com falha' : '')); }
+    function mudar(lote) {
+      return requisicao('POST', url, { data: lote.map(function (o) { var r = refMat(o); r.nextState = p.op.alvo; return r; }) }, p.ctx, 120000).then(function (r) {
+        var porId = {};
+        ((r && (r.results || r.data)) || []).forEach(function (x) { if (x && x.id) porId[x.id] = x; });
+        lote.forEach(function (o) {
+          var x = porId[o.id];
+          if (x && x.maturityState === p.op.alvo) { o.feito = true; o.estado = p.op.alvo; ok++; }
+          else if (x && x.maturityState) o.falha = 'ficou ' + rotulo(x.maturityState);
+          else if (lote.length === 1 && r && r.status && r.status.code === 0) { o.feito = true; o.estado = p.op.alvo; ok++; }
+          else o.falha = 'a 3DX não confirmou';
+        });
+        feitos += lote.length;
+      }).catch(function (e) {
+        // lote recusado: tenta um por um para saber exatamente qual falhou
+        if (lote.length > 1) return lote.reduce(function (pr, o) { return pr.then(function () { return mudar([o]); }); }, Promise.resolve());
+        lote[0].falha = textoErro(e); feitos++;
+      });
+    }
+    ordem.reduce(function (pr, nv, k) {
+      return pr.then(function () {
+        var objs = niveis[nv], lotes = [];
+        // item e seus desenhos no mesmo lote
+        objs.sort(function (a, b) { return String(a.item.id).localeCompare(String(b.item.id)) || (a.tipo === 'Drawing' ? 1 : -1); });
+        for (var i = 0; i < objs.length; i += 20) lotes.push(objs.slice(i, i + 20));
+        prog(k, nv);
+        return lotes.reduce(function (p2, l) { return p2.then(function () { return mudar(l).then(function () { prog(k, nv); }); }); }, Promise.resolve());
+      });
+    }, Promise.resolve()).then(function () {
+      fecharPainel();
+      var falhas = fila.filter(function (o) { return !o.feito; });
+      anotar('Maturidade em lote', falhas.length ? (ok ? 'OK' : 'ERRO') : 'OK', ok + ' de ' + total + ' mudado(s) para ' + p.op.alvo + (falhas.length ? '; falhas: ' + falhas.slice(0, 5).map(function (o) { return o.nome + ' (' + o.falha + ')'; }).join('; ') : ''));
+      amostra.maturidade = { alvo: p.op.alvo, total: total, ok: ok, falhas: falhas.map(function (o) { return { nome: o.nome, tipo: o.tipo, erro: o.falha }; }) };
+      mostrarAviso('<strong>Maturidade em lote:</strong> ' + ok + ' de ' + total + ' objeto(s) foram para <strong>' + rotulo(p.op.alvo) + '</strong>.' +
+        (falhas.length ? ' <strong>' + falhas.length + ' falharam</strong>: ' + falhas.slice(0, 4).map(function (o) { return esc(o.nome) + ' (' + esc(o.falha) + ')'; }).join('; ') + (falhas.length > 4 ? '...' : '') : '') +
+        ' <span class="sm-acoes-aviso"><button type="button" class="sm-btn2" id="sm-mat-relat">Baixar o relatório (CSV)</button></span> Recarregando a montagem...', falhas.length ? 'erro' : 'ok');
+      matRodando = false;
+      if (bruto) ler(bruto.raiz, deCarteira);
+    }).catch(function (e) {
+      fecharPainel(); matRodando = false;
+      mostrarAviso('Erro ao mudar a maturidade: ' + esc(textoErro(e)) + '. Recarregue a montagem para ver o que já mudou.', 'erro');
+      if ($('sm-maturidade')) $('sm-maturidade').disabled = !dados;
+    });
+  }
+
   // ---------- painel de andamento da exportação ----------
   var pdfUi = { inicio: 0, etapas: 2, pararEspera: false, relogio: null, ultimo: null };
   function painelPdf(etapa, titulo, atual, total, detalhe, podeParar) {
@@ -1180,18 +1425,18 @@
     var seg = Math.round((Date.now() - pdfUi.inicio) / 1000), tempo = seg >= 60 ? Math.floor(seg / 60) + 'min ' + (seg % 60) + 's' : seg + 's';
     var p = total ? Math.min(100, Math.round(100 * atual / total)) : 0;
     $('sm-aviso').innerHTML = '<div class="sm-aviso sm-prog-pdf" role="status" aria-live="polite">' +
-      '<div class="sm-prog-topo"><span class="sm-girando" aria-hidden="true"></span><strong>Exportando PDFs dos desenhos</strong><span class="sm-prog-tempo">' + tempo + '</span></div>' +
+      '<div class="sm-prog-topo"><span class="sm-girando" aria-hidden="true"></span><strong>' + esc(pdfUi.titulo || 'Exportando PDFs dos desenhos') + '</strong><span class="sm-prog-tempo">' + tempo + '</span></div>' +
       '<div class="sm-prog-etapa">Etapa ' + etapa + ' de ' + pdfUi.etapas + ' · ' + esc(titulo) + (total ? ' — <strong>' + atual + ' de ' + total + '</strong>' : '') + '</div>' +
       '<div class="sm-barra-prog"><i style="width:' + p + '%"></i></div>' +
       (detalhe ? '<div class="sm-prog-det">' + esc(detalhe) + '</div>' : '') +
       (podeParar ? (pdfUi.pararEspera ? '<div class="sm-prog-det"><strong>Parando a espera</strong>: vou baixar o que já ficou pronto.</div>' : '<button type="button" class="sm-btn2" id="sm-pdf-parar">Parar de esperar e baixar o que já está pronto</button>') : '') +
       '</div>';
   }
-  function iniciarPainel(etapas) {
-    pdfUi.inicio = Date.now(); pdfUi.etapas = etapas; pdfUi.pararEspera = false;
+  function iniciarPainel(etapas, titulo) {
+    pdfUi.inicio = Date.now(); pdfUi.etapas = etapas; pdfUi.pararEspera = false; pdfUi.titulo = titulo || '';
     clearInterval(pdfUi.relogio);
     // atualiza o relógio mesmo quando nada mais muda na tela
-    pdfUi.relogio = setInterval(function () { if (pdfUi.ultimo && pdfsRodando) painelPdf.apply(null, pdfUi.ultimo); }, 1000);
+    pdfUi.relogio = setInterval(function () { if (pdfUi.ultimo && (pdfsRodando || matRodando)) painelPdf.apply(null, pdfUi.ultimo); }, 1000);
   }
   function fecharPainel() { clearInterval(pdfUi.relogio); pdfUi.relogio = null; pdfUi.ultimo = null; }
 
@@ -1766,11 +2011,20 @@
           }
         });
         lote.forEach(function (n) { if (!(n in thumbs)) thumbs[n] = ''; });
-      }).catch(function (e) { falhas++; amostra.erroThumbs = textoErro(e); });
+        if (r && r.vazio) refazer.push(lote);   // vazio pode ser a 3DX sobrecarregada: tenta de novo no fim
+      }).catch(function (e) { refazer.push(lote); amostra.erroThumbs = textoErro(e); });
     }
-    // o primeiro lote descobre a forma de chamada que funciona; os demais vão em paralelo
+    var refazer = [];
+    // o primeiro lote descobre a forma de chamada que funciona; os demais vão de 4 em 4 (muitos ao mesmo tempo a 3DX recusa)
     return processarLote(lotes[0]).then(function () {
-      return Promise.all(lotes.slice(1).map(processarLote));
+      return emParalelo(lotes.slice(1), 4, processarLote);
+    }).then(function () {
+      // segunda tentativa, mais devagar, para os lotes que falharam ou voltaram vazios
+      var segunda = refazer; refazer = [];
+      return emParalelo(segunda, 2, processarLote).then(function () {
+        falhas = refazer.filter(function (l) { return l.some(function (n) { return !thumbs[n]; }) && !l.every(function (n) { return n in thumbs; }); }).length;
+        amostra.thumbsRefeitos = segunda.length;
+      });
     }).then(function () {
       thumbsEstado = falhas === lotes.length ? 'erro' : 'ok';
       anotar('Thumbnails', falhas ? (falhas === lotes.length ? 'ERRO' : 'OK') : 'OK', falhas ? falhas + ' de ' + lotes.length + ' lote(s) falharam' : '');
@@ -1877,7 +2131,7 @@
         amostra.desenhosLocate = { respondeu: locOk, semResposta: locFalha, desenhosNovos: locAchou };
       });
     }
-    var cadeia = lotes.length ? buscarLote(lotes[0]).then(function () { return Promise.all(lotes.slice(1).map(buscarLote)); }) : Promise.resolve();
+    var cadeia = lotes.length ? buscarLote(lotes[0]).then(function () { return emParalelo(lotes.slice(1), 4, buscarLote); }) : Promise.resolve();
     return cadeia.then(localizarTodos).then(function () {
       var ids = Object.keys(achados);
       amostra.desenhosAchados = ids.length;
@@ -2657,11 +2911,13 @@
     $('sm-atualizar').addEventListener('click', function () { if (modo === 'carteira') lerCarteira(true); else if (bruto) ler(bruto.raiz, deCarteira); });
     $('sm-relatorio').addEventListener('click', gerarRelatorio);
     $('sm-pdfs').addEventListener('click', exportarPdfs);
+    $('sm-maturidade').addEventListener('click', abrirMaturidade);
     $('sm-aviso').addEventListener('click', function (ev) {
       var t = ev.target && ev.target.closest ? ev.target.closest('button') : null;
       if (!t) return;
       if (t.id === 'sm-pdf-gerar') decidirPdfs(true);
       if (t.id === 'sm-pdf-so') decidirPdfs(false);
+      if (t.id === 'sm-mat-relat' && matPlano) csvMat('maturidade-resultado');
       if (t.id === 'sm-pdf-parar') { pdfUi.pararEspera = true; if (pdfUi.ultimo) painelPdf.apply(null, pdfUi.ultimo); }
     });
     $('sm-exportar').addEventListener('click', function () { if (modo === 'carteira') exportarCarteira(); else exportar(); });
@@ -2739,9 +2995,16 @@
       while (t && t !== this) {
         if (t.id === 'sm-modal-fechar' || t.id === 'sm-modal-fechar2') { fecharModal(); return; }
         if (t.id === 'sm-modal-3d') { abrir3D(); return; }
+        if (t.id === 'sm-mat-simular') { simularMaturidade(); return; }
+        if (t.id === 'sm-mat-confirmar') { executarMaturidade(); return; }
+        if (t.id === 'sm-mat-csv') { csvMat('maturidade-simulacao'); return; }
         if (t.id === 'sm-modal-2d') { if (noModal) abrir2D(melhorDesenho(noModal.item.id)); return; }
         t = t.parentNode;
       }
+    });
+    $('sm-modal').addEventListener('change', function (ev) {
+      // mudou a opção depois de simular: a simulação antiga não vale mais
+      if (/^sm-mat/.test(ev.target.name || ev.target.id || '') && matPlano && !matRodando) { matPlano = null; resMat().innerHTML = '<p class="sm-modal-msg sm-vazio">Opções mudaram: clique em Simular de novo.</p>'; }
     });
     document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && noModal) fecharModal(); });
     if (typeof require !== 'function') { modoForaDoDashboard(); return; }
