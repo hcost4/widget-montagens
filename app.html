@@ -275,7 +275,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v2.6 (05/11/2026)';
+  var VERSAO = 'v2.7 (06/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -1665,11 +1665,13 @@
     if (dados.raiz.filhos && dados.raiz.filhos.length) temFilhos[dados.raiz.item.id] = true;
     var locOk = 0, locFalha = 0, locAchou = 0;
     function localizar(it) {
-      var tipos = temFilhos[it.id] ? ['Product', 'Part'] : ['Part'];
+      // peças respondem pelo caminho de peça CAD; montagens, pelo caminho de Engineering Item
+      var PECA = 'resources/v1/modeler/dsxcad/dsxcad:Part/', ITEM = 'resources/v1/modeler/dseng/dseng:EngItem/';
+      var tipos = temFilhos[it.id] ? [ITEM, PECA] : [PECA, ITEM];
       function tentar(k) {
         if (k >= tipos.length) { locFalha++; return Promise.resolve(); }
         return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dsxcad/dsxcad:Drawing/Locate', {
-          referencedObject: [{ source: '$3DSpace', type: 'VPMReference', id: it.id, relativePath: 'resources/v1/modeler/dsxcad/dsxcad:' + tipos[k] + '/' + it.id }]
+          referencedObject: [{ source: '$3DSpace', type: 'VPMReference', id: it.id, relativePath: tipos[k] + it.id }]
         }).then(function (r) {
           locOk++;
           ((r && r.member) || []).forEach(function (d) { if (d.id && !achados[d.id]) { achados[d.id] = 'locate'; locAchou++; } });
