@@ -295,7 +295,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v3.2 (06/11/2026)';
+  var VERSAO = 'v3.3 (06/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -1239,7 +1239,7 @@
   function textoErroMat(e) {
     var t = textoErro(e), m = /"errorMessage"\s*:\s*"([^"]+)"/.exec(t), c = /"errorCode"\s*:\s*"([^"]+)"/.exec(t);
     var msg = m ? m[1] + (c ? ' (' + c[1] + ')' : '') : t;
-    if (/Commit failed/i.test(msg)) msg += ': a 3DX recusou ao gravar (verifique se o objeto está reservado/aberto por alguém, ou se alguma regra da empresa impede)';
+    if (/Commit failed|LCERROR500001/i.test(t)) msg = 'Usuário não tem permissão (confira a credencial: organização e espaço de colaboração do objeto)';
     return msg;
   }
 
