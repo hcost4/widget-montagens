@@ -295,7 +295,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v3.0 (06/11/2026)';
+  var VERSAO = 'v3.1 (06/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -705,6 +705,7 @@
     requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raiz.id) + '/expand', { expandDepth: -1, withPath: true })
     .then(function (r) {
       var membros = (r && r.member) || [];
+      corrigirEstadosMat(membros, raiz);
       bruto = { raiz: raiz, membros: membros, lido: agora() };
       aberto = {};
       thumbs = {}; thumbsEstado = ''; reservas = {}; revNovas = {}; extrasEstado = ''; filtro = null;
@@ -783,6 +784,8 @@
   }
 
   function registrarDesenho(id, d) {
+    if (d && !d.id) d.id = id;
+    corrigirEstadosMat([d], null);
     ((d.relatedData || {}).member || []).forEach(function (l) {
       var alvo = l.referencedObject && l.referencedObject.id;
       if (!alvo) return;
@@ -1200,6 +1203,14 @@
   // Regra de governança: só com o papel de Líder (VPLMProjectLeader). Desenhos andam junto com o item.
   // Fluxo: simula (getNextStates, sem mudar nada) -> mostra o que vai mudar -> confirmação -> muda de baixo para cima.
   var matRodando = false, matPlano = null;
+  // a leitura da estrutura (expand) da 3DX demora alguns minutos para refletir a mudança de maturidade;
+  // por 15 min o widget usa o estado que a própria 3DX confirmou no changeState
+  var matAplicado = {};
+  function corrigirEstadosMat(membros, raiz) {
+    var agoraMs = Date.now();
+    function aplicar(o) { var a = o && matAplicado[o.id]; if (a && agoraMs - a.quando < 15 * 60000 && o.state === a.antes) o.state = a.estado; }
+    membros.forEach(aplicar); aplicar(raiz);
+  }
   var ORDEM_MAT = { PRIVATE: 0, IN_WORK: 1, FROZEN: 2, RELEASED: 3, OBSOLETE: 4 };
 
   function ctxLider() {
@@ -1380,9 +1391,9 @@
         ((r && (r.results || r.data)) || []).forEach(function (x) { if (x && x.id) porId[x.id] = x; });
         lote.forEach(function (o) {
           var x = porId[o.id];
-          if (x && x.maturityState === p.op.alvo) { o.feito = true; o.estado = p.op.alvo; ok++; }
+          if (x && x.maturityState === p.op.alvo) { o.feito = true; o.estado = p.op.alvo; ok++; matAplicado[o.id] = { estado: p.op.alvo, antes: o.estadoAntes, quando: Date.now() }; }
           else if (x && x.maturityState) o.falha = 'ficou ' + rotulo(x.maturityState);
-          else if (lote.length === 1 && r && r.status && r.status.code === 0) { o.feito = true; o.estado = p.op.alvo; ok++; }
+          else if (lote.length === 1 && r && r.status && r.status.code === 0) { o.feito = true; o.estado = p.op.alvo; ok++; matAplicado[o.id] = { estado: p.op.alvo, antes: o.estadoAntes, quando: Date.now() }; }
           else o.falha = 'a 3DX não confirmou';
         });
         feitos += lote.length;
@@ -1408,7 +1419,7 @@
       amostra.maturidade = { alvo: p.op.alvo, total: total, ok: ok, falhas: falhas.map(function (o) { return { nome: o.nome, tipo: o.tipo, erro: o.falha }; }) };
       mostrarAviso('<strong>Maturidade em lote:</strong> ' + ok + ' de ' + total + ' objeto(s) foram para <strong>' + rotulo(p.op.alvo) + '</strong>.' +
         (falhas.length ? ' <strong>' + falhas.length + ' falharam</strong>: ' + falhas.slice(0, 4).map(function (o) { return esc(o.nome) + ' (' + esc(o.falha) + ')'; }).join('; ') + (falhas.length > 4 ? '...' : '') : '') +
-        ' <span class="sm-acoes-aviso"><button type="button" class="sm-btn2" id="sm-mat-relat">Baixar o relatório (CSV)</button></span> Recarregando a montagem...', falhas.length ? 'erro' : 'ok');
+        ' <span class="sm-acoes-aviso"><button type="button" class="sm-btn2" id="sm-mat-relat">Baixar o relatório (CSV)</button></span> A montagem foi recarregada com os novos estados.', falhas.length ? 'erro' : 'ok');
       matRodando = false;
       if (bruto) ler(bruto.raiz, deCarteira);
     }).catch(function (e) {
