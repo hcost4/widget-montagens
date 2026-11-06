@@ -295,7 +295,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v3.1 (06/11/2026)';
+  var VERSAO = 'v3.2 (06/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -792,7 +792,7 @@
       var atual = desenhos[alvo];
       if (!atual || (ORDEM_DES[d.state] || 0) > (ORDEM_DES[atual.state] || 0)) desenhos[alvo] = { state: d.state, name: d.name, title: d.title };
       var lista = desenhosLista[alvo] || (desenhosLista[alvo] = []);
-      if (!lista.some(function (x) { return x.id === id; })) lista.push({ id: id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing' });
+      if (!lista.some(function (x) { return x.id === id; })) lista.push({ id: id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing', collabspace: d.collabspace, organization: d.organization });
     });
   }
 
@@ -1224,6 +1224,25 @@
     return achados[0] || null;
   }
 
+  // papel de Líder no espaço (CS) dono do objeto: a 3DX só grava a mudança com o papel do CS do próprio objeto
+  function ctxLiderDoCS(nomeCS, org) {
+    var p = estado.pessoa || {}, achado = null;
+    (p.collabspaces || []).forEach(function (cs) {
+      if (cs.name !== nomeCS) return;
+      (cs.couples || []).forEach(function (c) {
+        if (!c.role || !c.organization || c.role.name !== 'VPLMProjectLeader') return;
+        if (!achado || (org && c.organization.name === org)) achado = 'ctx::' + c.role.name + '.' + c.organization.name + '.' + cs.name;
+      });
+    });
+    return achado;
+  }
+  function textoErroMat(e) {
+    var t = textoErro(e), m = /"errorMessage"\s*:\s*"([^"]+)"/.exec(t), c = /"errorCode"\s*:\s*"([^"]+)"/.exec(t);
+    var msg = m ? m[1] + (c ? ' (' + c[1] + ')' : '') : t;
+    if (/Commit failed/i.test(msg)) msg += ': a 3DX recusou ao gravar (verifique se o objeto está reservado/aberto por alguém, ou se alguma regra da empresa impede)';
+    return msg;
+  }
+
   function refMat(o) {
     var des = o.tipo === 'Drawing';
     return { id: o.id, type: des ? 'Drawing' : (o.type || 'VPMReference'), source: '$3DSpace',
@@ -1243,7 +1262,7 @@
         '<div class="sm-modal" role="dialog" aria-modal="true" aria-labelledby="sm-modal-titulo">' +
           '<div class="sm-modal-topo"><h2 id="sm-modal-titulo">Mudar maturidade em lote</h2>' +
           '<button type="button" class="sm-btn2" id="sm-modal-fechar" aria-label="Fechar">Fechar</button></div>' +
-          '<p class="sm-modal-msg">Montagem: <strong>' + esc(r.title || r.name) + '</strong> · papel usado: <strong>' + esc(lider.ctx.replace('ctx::', '')) + '</strong></p>' +
+          '<p class="sm-modal-msg">Montagem: <strong>' + esc(r.title || r.name) + '</strong> · papel usado: <strong>Líder do espaço (CS) de cada objeto</strong></p>' +
           '<div class="sm-mat-op" role="radiogroup" aria-label="Estado de destino"><span class="sm-mat-rot">Levar para</span>' +
             '<label class="sm-check"><input type="radio" name="sm-mat-alvo" value="FROZEN" checked /><span><strong>Congelado</strong></span></label>' +
             '<label class="sm-check"><input type="radio" name="sm-mat-alvo" value="RELEASED" /><span><strong>Liberado</strong></span></label>' +
@@ -1276,11 +1295,11 @@
     var lista = [], desVisto = {};
     Object.keys(itens).forEach(function (id) {
       var it = itens[id], nv = nivel[id];
-      if (!op.soDesenhos) lista.push({ id: id, tipo: 'Item', type: it.type || 'VPMReference', nome: it.title || it.name, rev: it.revision, estado: it.state, nivel: nv, item: it });
+      if (!op.soDesenhos) lista.push({ id: id, tipo: 'Item', type: it.type || 'VPMReference', nome: it.title || it.name, rev: it.revision, estado: it.state, nivel: nv, item: it, cs: it.collabspace, org: it.organization });
       (desenhosLista[id] || []).forEach(function (d) {
         // desenho ligado a vários itens: vai com o mais fundo
         if (desVisto[d.id] && desVisto[d.id].nivel >= nv) return;
-        var o = { id: d.id, tipo: 'Drawing', nome: d.title || d.name, rev: d.revision, estado: d.state, nivel: nv, item: it, de: it.title || it.name };
+        var o = { id: d.id, tipo: 'Drawing', nome: d.title || d.name, rev: d.revision, estado: d.state, nivel: nv, item: it, de: it.title || it.name, cs: d.collabspace, org: d.organization };
         if (desVisto[d.id]) lista.splice(lista.indexOf(desVisto[d.id]), 1);
         desVisto[d.id] = o; lista.push(o);
       });
@@ -1295,14 +1314,20 @@
     var lista = objetosMat(op);
     if (!lista.length) { resMat().innerHTML = '<p class="sm-modal-msg">Nada para mudar com essas opções.</p>'; return; }
     matRodando = true; $('sm-mat-simular').disabled = true;
-    var lotes = [], feitos = 0;
-    for (var i = 0; i < lista.length; i += 50) lotes.push(lista.slice(i, i + 50));
+    var lotes = [], feitos = 0, porCtx = {};
+    lista.forEach(function (o) {
+      o.ctx = o.cs ? ctxLiderDoCS(o.cs, o.org) : lider.ctx;
+      if (!o.ctx) { o.semLider = true; return; }
+      (porCtx[o.ctx] = porCtx[o.ctx] || []).push(o);
+    });
+    Object.keys(porCtx).forEach(function (c) { var l = porCtx[c]; for (var i = 0; i < l.length; i += 50) lotes.push(l.slice(i, i + 50)); });
+    feitos = lista.filter(function (o) { return o.semLider; }).length;
     function prog() { resMat().innerHTML = '<p class="sm-modal-msg" role="status"><span class="sm-girando" aria-hidden="true"></span> Simulando: consultando ' + feitos + ' de ' + lista.length + ' objeto(s) na 3DX...</p>'; }
     prog();
     anotar('Maturidade em lote', '...', 'simulando ' + lista.length + ' objeto(s) → ' + op.alvo);
     var url = estado.spaceUrl + '/resources/v1/modeler/dslc/maturity/getNextStates';
     function consultar(lote, topo) {
-      return requisicao('POST', url, { data: lote.map(refMat) }, lider.ctx, 60000).then(function (r) {
+      return requisicao('POST', url, { data: lote.map(refMat) }, lote[0].ctx, 60000).then(function (r) {
         var porId = {};
         ((r && r.data) || []).forEach(function (x) { if (x && x.id) porId[x.id] = x; });
         lote.forEach(function (o) {
@@ -1312,19 +1337,20 @@
         });
       }).catch(function (e) {
         if (lote.length > 1) return emParalelo(lote.map(function (o) { return [o]; }), 3, function (l) { return consultar(l, false); });
-        lote[0].erro = textoErro(e);
+        lote[0].erro = textoErroMat(e);
       }).then(function () { if (topo) { feitos += lote.length; prog(); } });
     }
     emParalelo(lotes, 3, function (l) { return consultar(l, true); }).then(function () {
       lista.forEach(function (o) {
         var s = o.estado, rs = !o.tipo || o.tipo === 'Item' ? reservas[o.id] : null;
-        if (o.erro) { o.classe = 'bloq'; o.motivo = 'erro na consulta: ' + o.erro; }
+        if (o.semLider) { o.classe = 'bloq'; o.motivo = 'você não tem papel de Líder no espaço ' + o.cs + ', dono deste objeto'; }
+        else if (o.erro) { o.classe = 'bloq'; o.motivo = 'erro na consulta: ' + o.erro; }
         else if (s === op.alvo || (ORDEM_MAT[s] !== undefined && ORDEM_MAT[s] > ORDEM_MAT[op.alvo])) { o.classe = 'pula'; o.motivo = 'já está ' + rotulo(s); }
         else if (rs && !ehMeu(rs.por)) { o.classe = 'bloq'; o.motivo = 'reservado por ' + (rs.por || 'outra pessoa'); }
         else if ((o.proximos || []).indexOf(op.alvo) >= 0) { o.classe = 'muda'; o.motivo = rotulo(s) + ' → ' + rotulo(op.alvo); }
         else { o.classe = 'bloq'; o.motivo = 'a 3DX não permite ' + rotulo(s) + ' → ' + rotulo(op.alvo) + (o.proximos && o.proximos.length ? ' (permite: ' + o.proximos.map(rotulo).join(', ') + ')' : ' com este papel'); }
       });
-      matPlano = { op: op, lista: lista, ctx: lider.ctx };
+      matPlano = { op: op, lista: lista };
       mostrarSimulacao();
       anotar('Maturidade em lote', 'OK', 'simulação: ' + contarMat('muda') + ' muda(m), ' + contarMat('pula') + ' já ok, ' + contarMat('bloq') + ' bloqueado(s)');
     }).catch(function (e) {
@@ -1386,7 +1412,7 @@
     anotar('Maturidade em lote', '...', 'mudando ' + total + ' objeto(s) → ' + p.op.alvo);
     function prog(k, nv) { painelPdf(k + 1, 'Nível ' + nv + (nv === 0 ? ' (montagem pai)' : ''), feitos, total, ok + ' mudado(s)' + (feitos - ok ? ', ' + (feitos - ok) + ' com falha' : '')); }
     function mudar(lote) {
-      return requisicao('POST', url, { data: lote.map(function (o) { var r = refMat(o); r.nextState = p.op.alvo; return r; }) }, p.ctx, 120000).then(function (r) {
+      return requisicao('POST', url, { data: lote.map(function (o) { var r = refMat(o); r.nextState = p.op.alvo; return r; }) }, lote[0].ctx, 120000).then(function (r) {
         var porId = {};
         ((r && (r.results || r.data)) || []).forEach(function (x) { if (x && x.id) porId[x.id] = x; });
         lote.forEach(function (o) {
@@ -1400,15 +1426,18 @@
       }).catch(function (e) {
         // lote recusado: tenta um por um para saber exatamente qual falhou
         if (lote.length > 1) return lote.reduce(function (pr, o) { return pr.then(function () { return mudar([o]); }); }, Promise.resolve());
-        lote[0].falha = textoErro(e); feitos++;
+        lote[0].falha = textoErroMat(e); feitos++;
       });
     }
     ordem.reduce(function (pr, nv, k) {
       return pr.then(function () {
         var objs = niveis[nv], lotes = [];
         // item e seus desenhos no mesmo lote
-        objs.sort(function (a, b) { return String(a.item.id).localeCompare(String(b.item.id)) || (a.tipo === 'Drawing' ? 1 : -1); });
-        for (var i = 0; i < objs.length; i += 20) lotes.push(objs.slice(i, i + 20));
+        objs.sort(function (a, b) { return String(a.ctx).localeCompare(String(b.ctx)) || String(a.item.id).localeCompare(String(b.item.id)) || (a.tipo === 'Drawing' ? 1 : -1); });
+        // cada lote só com objetos do mesmo espaço (CS), mudados com o papel de Líder daquele espaço
+        var atual = [];
+        objs.forEach(function (o) { if (atual.length && (atual.length >= 20 || atual[0].ctx !== o.ctx)) { lotes.push(atual); atual = []; } atual.push(o); });
+        if (atual.length) lotes.push(atual);
         prog(k, nv);
         return lotes.reduce(function (p2, l) { return p2.then(function () { return mudar(l).then(function () { prog(k, nv); }); }); }, Promise.resolve());
       });
@@ -2110,7 +2139,7 @@
             if (!atual || (ORDEM_DES[d.state] || 0) > (ORDEM_DES[atual.state] || 0)) desenhos[alvo] = { state: d.state, name: d.name, title: d.title };
             var lista = desenhosLista[alvo] || (desenhosLista[alvo] = []);
             if (!lista.some(function (x) { return x.id === id; })) {
-              lista.push({ id: id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing' });
+              lista.push({ id: id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing', collabspace: d.collabspace, organization: d.organization });
             }
           });
         }).catch(function (e) { falhas++; amostra.erroDesenhoDetalhe = textoErro(e); });
