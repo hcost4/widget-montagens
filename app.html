@@ -295,7 +295,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v3.4 (06/11/2026)';
+  var VERSAO = 'v3.5 (06/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -1516,8 +1516,8 @@
       return pedirConversao(lista, function (enviados) { painelPdf(2, 'Pedindo à 3DX para gerar ' + N + ' PDF(s)', enviados, N, 'pedidos enviados'); });
     }).then(function () {
       anotar('Gerar PDFs', 'OK', N + ' conversão(ões) pedida(s)');
-      // tempo máximo proporcional à quantidade (mín. 8 min, máx. 30 min). Se nada ficar pronto por 5 min,
-      // pede de novo (uma vez) a conversão dos que faltam e espera mais um pouco antes de desistir
+      // tempo máximo proporcional à quantidade (mín. 8 min, máx. 30 min); para antes se nada ficar pronto por 5 min.
+      // Não pede de novo: a 3DX guarda o pedido na fila dela (ampulheta em Derived outputs) e pedir de novo só duplica
       var limite = Math.min(30 * 60000, Math.max(8 * 60000, N * 6000)), inicio = Date.now(), ultimoAvanco = Date.now(), repedido = false;
       var pendentes = lista.slice(), prontos = 0;
       function mostrar() {
@@ -1535,7 +1535,7 @@
           mostrar();
           if (!pendentes.length || pdfUi.pararEspera) return;
           var travou = Date.now() - ultimoAvanco > 300000, estourou = Date.now() - inicio > limite;
-          if ((travou || estourou) && !repedido) {
+          if ((travou || estourou) && !repedido && false) {
             repedido = true; ultimoAvanco = Date.now(); limite = Math.max(limite, Date.now() - inicio + 8 * 60000);
             painelPdf(3, 'Pedindo de novo à 3DX os ' + pendentes.length + ' PDF(s) que não ficaram prontos', prontos, N, 'alguns pedidos parecem ter ficado parados na fila da 3DX...', true);
             anotar('Gerar PDFs', '...', 'pedindo de novo ' + pendentes.length + ' conversão(ões) paradas');
@@ -1609,16 +1609,21 @@
     if (!itens || pdfsRodando) return;
     pdfsRodando = true; $('sm-pdfs').disabled = true;
     var total = itens.length, vistosN = 0;
-    iniciarPainel(4);
+    iniciarPainel(2);
     painelPdf(1, 'Conferindo os ' + total + ' desenho(s) que faltaram', 0, total, 'consultando as saídas derivadas na 3DX...');
     anotar('PDFs dos desenhos', '...', 'buscando ' + total + ' que faltaram');
     emParalelo(itens, 6, function (x) {
       return lerSaidas(x.d).then(function (arqs) { x.pdf = escolherPdf(arqs); }).catch(function (e) { x.erro = textoErro(e); })
         .then(function () { vistosN++; painelPdf(1, 'Conferindo os ' + total + ' desenho(s) que faltaram', vistosN, total, 'consultando as saídas derivadas na 3DX...'); });
     }).then(function () {
-      var semPdf = itens.filter(function (x) { return !x.pdf && !x.erro; }), erroGerar = null;
-      var passo = semPdf.length ? gerarPdfs(semPdf).catch(function (e) { erroGerar = textoErro(e); }) : Promise.resolve();
-      return passo.then(function () { return concluirPdfs(itens, 4, erroGerar, true); });
+      itens.forEach(function (x) { if (!x.pdf && !x.erro) { x.emConversao = true; x.pedidos = 1; } });
+      if (!itens.some(function (x) { return x.pdf; })) {
+        fecharPainel(); pdfsFaltando = itens.map(function (x) { return { d: x.d }; });
+        mostrarAviso('<strong>Nenhum dos ' + itens.length + ' ficou pronto ainda.</strong> Os pedidos continuam na fila de conversão da 3DX (aparecem com ampulheta em Derived outputs). ' +
+          '<span class="sm-acoes-aviso"><button type="button" class="sm-btn" id="sm-pdf-faltam">Conferir de novo</button></span>');
+        pdfsRodando = false; $('sm-pdfs').disabled = !dados; return;
+      }
+      return concluirPdfs(itens, 2, null, true);
     }).catch(falhaPdfs);
   }
 
@@ -1655,7 +1660,7 @@
         'Gerado pelo Status de Montagens ' + VERSAO + ' em ' + agora(), '',
         (complemento ? 'COMPLEMENTO: só os desenhos que faltaram na exportação anterior.\r\n' : '') + 'Incluídos: ' + incluidos.length + ' de ' + itens.length + ' desenho(s)' + (gerados ? ' (' + gerados + ' gerado(s) agora pela 3DX)' : ''), ''];
       incluidos.forEach(function (i) { leia.push('  [OK] ' + i.nome + (i.x.gerado ? '  (PDF gerado agora)' : '') + (i.x.pdf.isSync ? '' : '  (PDF desatualizado em relação ao desenho)')); });
-      if (emConv.length) { leia.push('', 'Conversão pedida (' + (emConv[0].pedidos > 1 ? 'duas vezes' : 'uma vez') + '), mas a 3DX ainda não entregou o PDF (' + emConv.length + '). No widget, use "Buscar só os que faltaram" em alguns minutos. Se continuar faltando, o desenho pode estar com erro na conversão (confira na 3DX):'); emConv.forEach(function (x) { leia.push('  [..] ' + (x.d.title || x.d.name) + ' (' + x.d.name + ' rev ' + x.d.revision + ')' + (x.recusaConv ? ' — a 3DX respondeu: ' + x.recusaConv : '')); }); }
+      if (emConv.length) { leia.push('', 'Conversão pedida, mas ainda está na fila da 3DX (' + emConv.length + '). No widget, use "Buscar só os que faltaram" daqui a alguns minutos. Na 3DX, aparecem com ampulheta na aba Derived outputs do desenho:'); emConv.forEach(function (x) { leia.push('  [..] ' + (x.d.title || x.d.name) + ' (' + x.d.name + ' rev ' + x.d.revision + ')' + (x.recusaConv ? ' — a 3DX respondeu: ' + x.recusaConv : '')); }); }
       if (semPdf.length) { leia.push('', 'Sem PDF na 3DX (' + semPdf.length + '):' + (erroGerar ? ' — não consegui gerar: ' + erroGerar : '')); semPdf.forEach(function (x) { leia.push('  [--] ' + (x.d.title || x.d.name) + ' (' + x.d.name + ' rev ' + x.d.revision + ', ' + rotulo(x.d.state) + ')'); }); }
       if (falhas.length) { leia.push('', 'Não consegui baixar (' + falhas.length + '):'); falhas.forEach(function (f) { leia.push('  [ERRO] ' + (f.d.title || f.d.name) + ': ' + f.erro); }); }
       anotar('PDFs dos desenhos', incluidos.length ? 'OK' : 'ERRO', incluidos.length + ' PDF(s), ' + gerados + ' gerado(s), ' + semPdf.length + ' sem PDF, ' + emConv.length + ' em conversão, ' + falhas.length + ' falha(s)');
@@ -1678,7 +1683,7 @@
         salvar(b, nomeZip + (complemento ? ' - complemento' : '') + '.zip');
         mostrarAviso('<strong>Exportação concluída.</strong> ' + esc(resumo) + (erroGerar ? ' <br />Não consegui gerar os que faltavam: ' + esc(erroGerar) : '') +
           (emConv.length ? ' <span class="sm-acoes-aviso"><button type="button" class="sm-btn" id="sm-pdf-faltam">' + (emConv.length === 1 ? 'Buscar só o que faltou' : 'Buscar só os ' + emConv.length + ' que faltaram') + '</button></span>' +
-            '<br /><small>Confere de novo só esses desenhos (pede a conversão de novo se ainda não tiverem PDF) e baixa um .zip de complemento, sem repetir os outros.</small>' : ''));
+            '<br /><small>Os pedidos ficam na fila de conversão da 3DX. Clique daqui a alguns minutos: confere só esses desenhos e baixa um .zip de complemento com os que ficaram prontos, sem repetir os outros.</small>' : ''));
       });
     }).then(function () { pdfsRodando = false; if ($('sm-pdfs')) $('sm-pdfs').disabled = !dados; });
   }
