@@ -275,7 +275,7 @@
 </style>
 <script type="text/javascript">
 (function () {
-  var VERSAO = 'v2.7 (06/11/2026)';
+  var VERSAO = 'v2.8 (06/11/2026)';
   // Endereço padrão do 3DSpace (tenant de teste da SKA). Para outro tenant,
   // passe ?space=<endereço> no link do Run Your App.
   // descobre o 3DSpace do tenant onde o widget foi aberto, pelo endereço do próprio dashboard
@@ -313,7 +313,7 @@
   var revNovas = {};       // id do item da estrutura -> { id, revision, state, owner, modified } da revisão mais nova
   var extrasEstado = '';   // reservas e revisões: '', 'carregando', 'ok', 'erro'
   var filtro = null;       // { chave, rotulo } do filtro aplicado pelos gráficos e indicadores
-  var cfg = { limite: 15, metaPct: 90, metaData: '', exigirDesenho: true };
+  var cfg = { limite: 15, metaPct: 90, metaData: '', exigirDesenho: true, todosCS: true };
   var modo = 'montagem';     // 'montagem' ou 'carteira'
   var carteiras = null;      // { atual, listas: { nome: [ {id,name,title,revision,state,type} ] } }
   var carteiraDados = {};    // id da montagem -> { foto, resumo, erro }
@@ -358,6 +358,7 @@
         '<label class="sm-campo" for="sm-limite">Parado após (dias)<input id="sm-limite" type="number" min="0" max="999" style="width:130px" /></label>' +
         '<label class="sm-campo" for="sm-meta">Meta de liberação (%)<input id="sm-meta" type="number" min="1" max="100" style="width:150px" /></label>' +
         '<label class="sm-campo" for="sm-data">Data da meta<input id="sm-data" type="date" style="width:160px" /></label>' +
+        '<label class="sm-check" for="sm-todoscs"><input id="sm-todoscs" type="checkbox" /><span><strong>Ler com todos os meus espaços de colaboração</strong><small>Confere a estrutura e os desenhos com cada CS em que você tem papel, para não perder itens de espaços privados. Mais lento em estruturas grandes.</small></span></label>' +
         '<label class="sm-check" for="sm-exigir"><input id="sm-exigir" type="checkbox" /><span><strong>Exigir desenho em todos os itens</strong><small>Desligado: itens que nunca tiveram desenho (ex.: comprados, normalizados) não contam como pendência. Só cobra desenho que existe e ainda não foi liberado.</small></span></label>' +
         '<p class="sm-nota">As configurações ficam salvas neste navegador.</p>' +
       '</div>' +
@@ -381,6 +382,7 @@
               '<dt>Carteira</dt><dd>Lista de montagens acompanhadas juntas, salva neste navegador. Situação: <strong>Crítico</strong> quando há inconsistência: item pendente sob pai liberado ou item reservado e parado. <strong>Atenção</strong> quando há item liberado sem desenho liberado, item parado, ou itens/desenhos liberados abaixo da meta (%) das Configurações. <strong>No prazo</strong> quando nada disso acontece.</dd>' +
               '<dt>Minhas pendências</dt><dd>Itens em que você é o owner e que ainda não estão liberados (ou liberados com desenho pendente), mais itens reservados por você.</dd>' +
               '<dt>PDFs dos desenhos</dt><dd>Baixa num .zip os PDFs que já existem na 3DX (saídas derivadas) de todos os desenhos da estrutura. Se algum desenho não tiver PDF, o widget pergunta se deve pedir à 3DX para gerar (regra sob demanda do Derived Format Converter) e espera até ~5 min. O que não ficar pronto aparece no LEIA-ME do zip. Precisa de um papel com direito de exportar (normalmente Leader); o widget procura esse papel sozinho.</dd>' +
+              '<dt>Todos os espaços de colaboração</dt><dd>Com a opção ligada, depois da leitura normal o widget lê de novo a estrutura e procura desenhos usando um papel de cada CS em que você está. Assim, itens e desenhos de espaços privados também entram. O Diagnóstico técnico mostra quantos vieram só de outro CS.</dd>' +
               '<dt>Filtros</dt><dd>Clique numa fatia dos gráficos ou num indicador para ver só aqueles itens.</dd>' +
               '<dt>Ritmo necessário</dt><dd>Itens que faltam para a meta divididos pelas semanas até a data da meta.</dd>' +
             '</dl>' +
@@ -683,8 +685,9 @@
       processar();
       anotar('Expansão', 'OK', dados.unicos.length + ' itens únicos, ' + dados.nos.length + ' ocorrências');
       desenhar();
-      carregarThumbs();
-      carregarDesenhos();
+      var foto = bruto;
+      Promise.all([carregarThumbs(), carregarDesenhos()]).then(function () { return conferirOutrosCS(foto); })
+        .catch(function (e) { anotar('Outros espaços (CS)', 'ERRO', textoErro(e)); });
     }).catch(function (e) {
       anotar('Expansão', 'ERRO', textoErro(e));
       $('sm-conteudo').innerHTML = '';
@@ -693,6 +696,130 @@
       $('sm-buscar').disabled = false;
       $('sm-atualizar').disabled = !bruto;
       $('sm-exportar').disabled = !dados; $('sm-relatorio').disabled = !dados; $('sm-pdfs').disabled = !dados;
+    });
+  }
+
+  // ---------- ler com todos os espaços de colaboração (CS) do usuário ----------
+  // O contexto atual é só a "porta de entrada". Se algum CS for privado, os itens dele só aparecem
+  // entrando por ele. Aqui o widget repete a leitura com um papel de cada um dos outros CS e junta tudo.
+  function contextosOutrosCS() {
+    var p = estado.pessoa || {}, por = {}, atualCS = String(estado.ctx || '').replace(/^ctx::/, '').split('.').slice(2).join('.');
+    (p.collabspaces || []).forEach(function (cs) {
+      (cs.couples || []).forEach(function (c) {
+        if (!c.role || !c.organization) return;
+        var peso = /Leader|Owner/i.test(c.role.name) ? 3 : /Admin/i.test(c.role.name) ? 2 : /Author|Contributor/i.test(c.role.name) ? 1 : 0;
+        if (!por[cs.name] || peso > por[cs.name].peso) por[cs.name] = { ctx: 'ctx::' + c.role.name + '.' + c.organization.name + '.' + cs.name, peso: peso };
+      });
+    });
+    return Object.keys(por).filter(function (n) { return n !== atualCS; }).map(function (n) { return { cs: n, ctx: por[n].ctx }; });
+  }
+
+  function emParalelo(lista, n, fazer) {
+    var fila = lista.slice();
+    function trab() { var x = fila.shift(); return x === undefined ? Promise.resolve() : Promise.resolve(fazer(x)).catch(function () { }).then(trab); }
+    var t = []; for (var i = 0; i < n; i++) t.push(trab());
+    return Promise.all(t);
+  }
+
+  function chaveMembro(m) { return m.type === 'Path' || m.Path ? 'P:' + (m.Path || []).join('/') : m.type + ':' + m.id; }
+
+  // lê a estrutura com os outros CS e acrescenta em "membros" o que só eles enxergam
+  function conferirEstruturaOutrosCS(raizId, membros) {
+    var ctxs = contextosOutrosCS(), vistos = {}, res = { cs: ctxs.length, novosItens: 0, porCS: {}, falhas: 0 };
+    membros.forEach(function (m) { vistos[chaveMembro(m)] = true; });
+    if (!ctxs.length) return Promise.resolve(res);
+    return emParalelo(ctxs, 4, function (c) {
+      return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dseng/dseng:EngItem/' + encodeURIComponent(raizId) + '/expand', { expandDepth: -1, withPath: true }, c.ctx)
+        .then(function (r) {
+          ((r && r.member) || []).forEach(function (m) {
+            var k = chaveMembro(m);
+            if (vistos[k]) return;
+            vistos[k] = true; membros.push(m);
+            if (m.type === 'VPMReference') { res.novosItens++; res.porCS[c.cs] = (res.porCS[c.cs] || 0) + 1; }
+          });
+        }).catch(function () { res.falhas++; });
+    }).then(function () { return res; });
+  }
+
+  // procura desenhos de um item com um contexto; devolve a lista de ids
+  function localizarDesenhosCom(it, temFilhos, ctx) {
+    var PECA = 'resources/v1/modeler/dsxcad/dsxcad:Part/', ITEM = 'resources/v1/modeler/dseng/dseng:EngItem/';
+    var tipos = temFilhos ? [ITEM, PECA] : [PECA, ITEM];
+    function tentar(k) {
+      if (k >= tipos.length) return Promise.resolve([]);
+      return requisicao('POST', estado.spaceUrl + '/resources/v1/modeler/dsxcad/dsxcad:Drawing/Locate', {
+        referencedObject: [{ source: '$3DSpace', type: 'VPMReference', id: it.id, relativePath: tipos[k] + it.id }]
+      }, ctx).then(function (r) { return ((r && r.member) || []).map(function (d) { return d.id; }).filter(Boolean); })
+        .catch(function () { return tentar(k + 1); });
+    }
+    return tentar(0);
+  }
+
+  function registrarDesenho(id, d) {
+    ((d.relatedData || {}).member || []).forEach(function (l) {
+      var alvo = l.referencedObject && l.referencedObject.id;
+      if (!alvo) return;
+      var atual = desenhos[alvo];
+      if (!atual || (ORDEM_DES[d.state] || 0) > (ORDEM_DES[atual.state] || 0)) desenhos[alvo] = { state: d.state, name: d.name, title: d.title };
+      var lista = desenhosLista[alvo] || (desenhosLista[alvo] = []);
+      if (!lista.some(function (x) { return x.id === id; })) lista.push({ id: id, name: d.name, title: d.title, state: d.state, revision: d.revision, owner: d.owner, modified: d.modified, type: d.type || 'Drawing' });
+    });
+  }
+
+  // itens sem desenho: pergunta de novo com os outros CS (desenho pode estar num CS privado)
+  function conferirDesenhosOutrosCS() {
+    var ctxs = contextosOutrosCS(), res = { novos: 0, porCS: {} };
+    if (!ctxs.length || !dados) return Promise.resolve(res);
+    var temFilhos = {};
+    dados.nos.forEach(function (n) { if (n.filhos.length) temFilhos[n.item.id] = true; });
+    temFilhos[dados.raiz.item.id] = true;
+    var sem = dados.unicos.map(function (u) { return u.item; }).concat([dados.raiz.item]).filter(function (it) { return !desenhos[it.id]; });
+    var tarefas = [];
+    sem.forEach(function (it) { ctxs.forEach(function (c) { tarefas.push({ it: it, c: c }); }); });
+    // limite de segurança para estruturas muito grandes (cada consulta é uma chamada à 3DX)
+    var LIMITE = 2000;
+    if (tarefas.length > LIMITE) { res.limitado = tarefas.length; tarefas = tarefas.slice(0, LIMITE); }
+    var vistos = {};
+    Object.keys(desenhosLista).forEach(function (k) { desenhosLista[k].forEach(function (d) { vistos[d.id] = true; }); });
+    return emParalelo(tarefas, 8, function (t) {
+      if (desenhos[t.it.id]) return;   // outro CS já achou
+      return localizarDesenhosCom(t.it, temFilhos[t.it.id], t.c.ctx).then(function (ids) {
+        return Promise.all(ids.filter(function (id) { return !vistos[id]; }).map(function (id) {
+          vistos[id] = true;
+          return requisicao('GET', estado.spaceUrl + '/resources/v1/modeler/dsxcad/dsxcad:Drawing/' + encodeURIComponent(id) + '?$mask=dsmvxcad:xCADDrawingMask.Details', null, t.c.ctx)
+            .then(function (r) { var d = r && r.member && r.member[0]; if (d) { registrarDesenho(id, d); res.novos++; res.porCS[t.c.cs] = (res.porCS[t.c.cs] || 0) + 1; } });
+        }));
+      });
+    }).then(function () { res.consultas = tarefas.length; return res; });
+  }
+
+  // roda as duas conferências depois da leitura normal; "foto" garante que a montagem não mudou no meio
+  function conferirOutrosCS(foto) {
+    if (!cfg.todosCS || !bruto || !contextosOutrosCS().length) return Promise.resolve(false);
+    var ctxs = contextosOutrosCS();
+    anotar('Outros espaços (CS)', '...', 'conferindo com ' + ctxs.length + ' espaço(s) de colaboração');
+    return conferirEstruturaOutrosCS(foto.raiz.id, foto.membros).then(function (rE) {
+      if (bruto !== foto) return false;
+      var mudou = rE.novosItens > 0;
+      if (mudou) { processar(); }
+      return (mudou ? Promise.all([carregarThumbs(), carregarDesenhos()]) : Promise.resolve()).then(function () {
+        if (bruto !== foto) return false;
+        return conferirDesenhosOutrosCS().then(function (rD) {
+          if (bruto !== foto) return false;
+          var txt = ctxs.length + ' CS conferido(s) · ' + rE.novosItens + ' item(ns) só visto(s) por outro CS' +
+            (rE.novosItens ? ' (' + Object.keys(rE.porCS).map(function (k) { return k + ': ' + rE.porCS[k]; }).join(', ') + ')' : '') +
+            ' · ' + rD.novos + ' desenho(s) a mais' + (rD.novos ? ' (' + Object.keys(rD.porCS).map(function (k) { return k + ': ' + rD.porCS[k]; }).join(', ') + ')' : '') +
+            (rE.falhas ? ' · ' + rE.falhas + ' CS sem acesso à montagem' : '') +
+            (rD.limitado ? ' · desenhos conferidos só em parte (' + rD.limitado + ' consultas, limite 2000)' : '');
+          anotar('Outros espaços (CS)', 'OK', txt);
+          amostra.outrosCS = { estrutura: rE, desenhos: rD };
+          if (mudou || rD.novos) {
+            desenhar();
+            if (mudou) mostrarAviso('Encontrei <strong>' + rE.novosItens + ' item(ns)</strong> que só aparecem por outro espaço de colaboração (' + esc(Object.keys(rE.porCS).join(', ')) + '). Já estão incluídos.');
+          }
+          return mudou || rD.novos > 0;
+        });
+      });
     });
   }
 
@@ -778,7 +905,8 @@
         thumbs = {}; thumbsEstado = ''; reservas = {}; revNovas = {}; extrasEstado = '';
         desenhos = {}; desenhosEstado = ''; desenhosLista = {};
         processar();
-        return Promise.all([carregarThumbs(), carregarDesenhos()]);
+        var foto = bruto;
+        return Promise.all([carregarThumbs(), carregarDesenhos()]).then(function () { return conferirOutrosCS(foto).catch(function () { }); });
       });
   }
 
@@ -2421,6 +2549,8 @@
     var m = parseInt(lerLocal('sm-meta'), 10); if (m > 0 && m <= 100) cfg.metaPct = m;
     cfg.metaData = lerLocal('sm-data') || '';
     cfg.exigirDesenho = lerLocal('sm-exigir') !== '0';
+    cfg.todosCS = lerLocal('sm-todoscs') !== '0';
+    $('sm-todoscs').checked = cfg.todosCS;
     $('sm-limite').value = cfg.limite; $('sm-meta').value = cfg.metaPct; $('sm-data').value = cfg.metaData; $('sm-exigir').checked = cfg.exigirDesenho;
   }
   function mudouCfg() {
@@ -2429,6 +2559,7 @@
     if (m > 0 && m <= 100) { cfg.metaPct = m; gravarLocal('sm-meta', String(m)); }
     cfg.metaData = $('sm-data').value || ''; gravarLocal('sm-data', cfg.metaData);
     cfg.exigirDesenho = $('sm-exigir').checked; gravarLocal('sm-exigir', cfg.exigirDesenho ? '1' : '0');
+    cfg.todosCS = $('sm-todoscs').checked; gravarLocal('sm-todoscs', cfg.todosCS ? '1' : '0');
     recalcularCarteira();
     if (modo === 'carteira') { if (!carteiraLendo) desenharCarteira(); return; }
     if (bruto) {
@@ -2481,7 +2612,7 @@
       if (abrir) painel.removeAttribute('hidden'); else painel.setAttribute('hidden', '');
       this.setAttribute('aria-expanded', abrir ? 'true' : 'false');
     });
-    ['sm-limite', 'sm-meta', 'sm-data', 'sm-exigir'].forEach(function (id) { $(id).addEventListener('change', mudouCfg); });
+    ['sm-limite', 'sm-meta', 'sm-data', 'sm-exigir', 'sm-todoscs'].forEach(function (id) { $(id).addEventListener('change', mudouCfg); });
     // cliques dentro do conteúdo (escolha da busca, setas e botões da árvore)
     $('sm-conteudo').addEventListener('click', function (ev) {
       var alvo = ev.target;
